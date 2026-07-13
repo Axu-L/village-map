@@ -17,21 +17,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# data & uploads
-data/
-public/uploads/*
-!public/uploads/.gitkeep
-
-# deploy artifacts
+# deploy artifacts (zip only)
 village-map-deploy.zip
-village-map-deploy/
-
-# trae
-.trae/
