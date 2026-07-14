@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       displayName: user.displayName,
       role: user.role,
     };
-    const token = signToken(authUser);
+    const token = await signToken(authUser);
 
     return Response.json({ token, user: authUser });
   } catch (error) {

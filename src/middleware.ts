@@ -7,7 +7,7 @@ const PUBLIC_PATHS = ["/api/auth", "/api/health"];
 // 需要鉴权的 API 路径前缀（所有方法，含 GET）
 const PROTECTED_PREFIXES = ["/api/households", "/api/members", "/api/visits", "/api/upload"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
 
   // 上传照片：同源 Referer 校验，防止外站直接引用（UUID 不可枚举 + noindex 已兜底）
@@ -46,7 +46,7 @@ export function middleware(request: NextRequest) {
   }
 
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
-  const user = verifyToken(token);
+  const user = await verifyToken(token);
 
   if (!user) {
     return NextResponse.json({ message: "登录已过期，请重新登录" }, { status: 401 });

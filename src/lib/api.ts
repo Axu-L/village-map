@@ -65,10 +65,14 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<any
       // 响应非 JSON，使用默认 message
     }
     // 401：token 过期或无效，清除登录态并跳转登录页（仅浏览器环境）
+    // 用标志位避免多个并行请求同时触发跳转
     if (res.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = apiUrl("/login");
+      if (!window.__redirectingToLogin) {
+        window.__redirectingToLogin = true;
+        window.location.href = apiUrl("/login");
+      }
     }
     throw new ApiError(message, res.status);
   }
