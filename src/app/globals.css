@@ -2705,4 +2705,22 @@ select:focus-visible {
   .amap-scalecontrol {
     bottom: 62px !important;
   }
+
+  /* ========== 统计页面移动端布局 ========== */
+  /* 4 个统计卡片：4列 → 2列 */
+  .stats-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
+  }
+  /* 饼图+趋势：2列 → 1列纵向排列 */
+  .stats-charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  /* 饼图内部：横向 → 纵向（饼图在上，图例在下） */
+  .pie-chart-row {
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
 }

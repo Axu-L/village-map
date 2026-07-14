@@ -108,6 +108,7 @@ export default function StatisticsPage() {
 
       {/* Top row: 4 stat cards */}
       <div
+        className="stats-cards-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
@@ -209,6 +210,7 @@ export default function StatisticsPage() {
 
       {/* Two-column: Pie chart + Trend */}
       <div
+        className="stats-charts-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -233,7 +235,7 @@ export default function StatisticsPage() {
               暂无数据
             </div>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div className="pie-chart-row" style={{ display: "flex", alignItems: "center", gap: 20 }}>
               <div
                 style={{
                   width: 120,
