@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
-import { DEFAULT_CENTER, DEFAULT_ZOOM } from "@/lib/amap";
+import { getMapSettings } from "@/lib/amap";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AMapInstance: any = null;
@@ -114,11 +114,13 @@ export function MapContainer({
           AMap.getConfig().appname = "amap-jsapi-skill";
           AMapInstance = AMap;
 
-          // 初始化时直接定位到当前位置，用默认中心作为兜底
+          // 从 localStorage 读取用户配置的地图设置（兜底用内置默认值）
+          const { center: userCenter, zoom: userZoom } = getMapSettings();
+
           const map = new AMap.Map(containerRef.current, {
             viewMode: "2D",
-            zoom: DEFAULT_ZOOM,
-            center: DEFAULT_CENTER,
+            zoom: userZoom,
+            center: userCenter,
             mapStyle: "amap://styles/whitesmoke",
           });
 
@@ -216,7 +218,7 @@ export function MapContainer({
 
           geolocation.on("error", () => {
             // 定位失败，回退到默认中心
-            map.setCenter(DEFAULT_CENTER);
+            map.setCenter(getMapSettings().center);
             setMapReady(true);
           });
 
@@ -277,6 +279,17 @@ export function MapContainer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 监听地图设置变化：用户在设置页修改中心/缩放后，实时应用到当前地图
+  useEffect(() => {
+    const handler = () => {
+      if (!mapRef.current) return;
+      const { center, zoom } = getMapSettings();
+      mapRef.current.setZoomAndCenter(zoom, center);
+    };
+    window.addEventListener("map-settings-changed", handler);
+    return () => window.removeEventListener("map-settings-changed", handler);
   }, []);
 
   // 更新住户标记
