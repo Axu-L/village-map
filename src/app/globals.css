@@ -2349,13 +2349,16 @@ select:focus-visible {
 
 @media (max-width: 760px) {
   body {
-    padding-bottom: 65px;
+    /* 移除 padding-bottom，改由各页面自行控制底部留白 */
+    padding-bottom: 0;
   }
   .sidebar {
     display: none;
   }
   .workspace {
     margin-left: 0;
+    /* 给底部 fixed tab 栏留空间，避免内容被遮挡 */
+    padding-bottom: 62px;
   }
   .topbar {
     position: sticky;
@@ -2391,9 +2394,10 @@ select:focus-visible {
 
   /* Map page mobile */
   .map-page {
-    /* 精确填满视口减去 topbar(60px) 和 tab栏(62px) */
+    /* 减去 topbar(60px) 和 workspace padding-bottom(62px)，精确填满不溢出 */
     height: calc(100vh - 60px - 62px);
-    /* 不再加 padding-bottom，避免总高度溢出产生空白 */
+    overflow: hidden;
+    box-sizing: border-box;
   }
   .map-toolbar {
     flex-wrap: wrap;
