@@ -2538,8 +2538,9 @@ select:focus-visible {
   }
   .form-right {
     width: 100%;
-    min-height: 250px;
-    max-height: 35vh;
+    /* 明确固定高度，确保高德地图容器能获取到尺寸渲染 canvas */
+    height: 35vh;
+    min-height: 220px;
   }
   .household-form-modal {
     width: 100%;

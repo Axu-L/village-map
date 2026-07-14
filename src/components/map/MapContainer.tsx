@@ -179,6 +179,11 @@ export function MapContainer({
           });
           map.addControl(geolocation);
           geolocationRef.current = geolocation;
+
+          // 地图实例已就绪，立即显示（不等待定位结果，避免定位超时期间地图被 loading 遮罩盖住）
+          mapRef.current = map;
+          setMapReady(true);
+
           geolocation.getCurrentPosition();
 
           geolocation.on("complete", (data: any) => {
@@ -213,13 +218,11 @@ export function MapContainer({
                 });
               }
             }
-            setMapReady(true);
           });
 
           geolocation.on("error", () => {
-            // 定位失败，回退到默认中心
+            // 定位失败，回退到默认中心（地图已在上方 setMapReady(true) 显示）
             map.setCenter(getMapSettings().center);
-            setMapReady(true);
           });
 
           // 监听设备朝向，旋转定位蓝点
@@ -264,8 +267,6 @@ export function MapContainer({
               );
             }
           });
-
-          mapRef.current = map;
         })
         .catch((e: Error) => {
           console.error("地图加载失败", e);
