@@ -2618,6 +2618,15 @@ select:focus-visible {
     color: white;
     background: var(--blue);
     box-shadow: 0 4px 14px rgba(47, 128, 237, 0.3);
-    font-size: 0;
+  }
+  /* 隐藏"新增"文字，只保留图标，确保 svg 在 a 中正确居中 */
+  .mobile-nav a.mobile-add span {
+    display: none;
+  }
+
+  /* 高德地图 logo / 版权上移，避开底部 tab 栏 */
+  .amap-logo,
+  .amap-copyright {
+    bottom: 70px !important;
   }
 }
