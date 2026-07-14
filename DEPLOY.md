@@ -52,8 +52,9 @@ scp village-map.tar.gz root@你的服务器IP:/usr/local/nginx/html/
 SSH 登录服务器后执行：
 
 ```bash
-# 1. 解压
+# 1. 解压（-C 指定的目录必须先存在）
 cd /usr/local/nginx/html
+mkdir -p village-map
 tar -xzf village-map.tar.gz -C village-map
 cd village-map
 
