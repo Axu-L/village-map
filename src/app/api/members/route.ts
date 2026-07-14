@@ -1,16 +1,10 @@
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { parseRow } from "@/lib/db-utils";
+import { validateAge, validateGender } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
-
-// 将 SQLite 返回的 tags JSON 字符串解析为数组
-function parseRow(row: any) {
-  return {
-    ...row,
-    tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags || [],
-  };
-}
 
 export async function GET(request: Request) {
   try {
@@ -18,32 +12,7 @@ export async function GET(request: Request) {
     if (!householdId) {
       return Response.json({ message: "缺少住户编号" }, { status: 400 });
     }
-    let data = await db.select().from(members).where(eq(members.householdId, householdId));
-
-    // 若该住户无成员，自动插入 demo 成员数据
-    if (data.length === 0) {
-      const demoMembers = [
-        {
-          householdId,
-          name: "户主本人",
-          relation: "户主",
-          age: 58,
-          gender: "男",
-          tags: JSON.stringify([]) as any,
-        },
-        {
-          householdId,
-          name: "户主配偶",
-          relation: "配偶",
-          age: 56,
-          gender: "女",
-          tags: JSON.stringify([]) as any,
-        },
-      ];
-      await db.insert(members).values(demoMembers as any);
-      data = await db.select().from(members).where(eq(members.householdId, householdId));
-    }
-
+    const data = await db.select().from(members).where(eq(members.householdId, householdId));
     return Response.json(data.map(parseRow));
   } catch (error) {
     console.error("Unable to load members", error);
@@ -57,14 +26,29 @@ export async function POST(request: Request) {
     if (!body.householdId || !body.name || !body.relation) {
       return Response.json({ message: "请完整填写成员信息" }, { status: 400 });
     }
+
+    // 输入校验
+    const householdIdNum = Number(body.householdId);
+    if (isNaN(householdIdNum)) {
+      return Response.json({ message: "住户编号不合法" }, { status: 400 });
+    }
+    const ageVal = body.age ? Number(body.age) : null;
+    if (!validateAge(ageVal)) {
+      return Response.json({ message: "年龄不合法（0-150）" }, { status: 400 });
+    }
+    const genderVal = body.gender || null;
+    if (!validateGender(genderVal)) {
+      return Response.json({ message: "性别不合法" }, { status: 400 });
+    }
+
     const [created] = await db
       .insert(members)
       .values({
-        householdId: Number(body.householdId),
+        householdId: householdIdNum,
         name: body.name.trim(),
         relation: body.relation,
-        age: body.age ? Number(body.age) : null,
-        gender: body.gender || null,
+        age: ageVal,
+        gender: genderVal,
         tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []) as any,
       } as any)
       .returning();

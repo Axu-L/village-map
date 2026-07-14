@@ -4,33 +4,34 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Calendar, Clock, ChevronDown, MapPin, User, Image as ImageIcon } from "lucide-react";
 import type { Household, Visit } from "@/types";
-import { apiUrl, assetUrl } from "@/lib/api";
+import { assetUrl, apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 
 export default function VisitsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [hRes, vRes] = await Promise.all([
-          fetch(apiUrl("/api/households")),
-          fetch(apiUrl("/api/visits")),
-        ]);
-        const hData = await hRes.json();
-        const vData = await vRes.json();
+    let cancelled = false;
+    Promise.all([apiFetch("/api/households"), apiFetch("/api/visits")])
+      .then(([hData, vData]) => {
+        if (cancelled) return;
         setHouseholds(Array.isArray(hData) ? hData : []);
         setVisits(Array.isArray(vData) ? vData : []);
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+        toast("加载数据失败", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   // householdId → household 映射
   const householdMap = useMemo(() => {

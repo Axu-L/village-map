@@ -3,38 +3,35 @@
 import { useEffect, useState } from "react";
 import type { Household, Visit } from "@/types";
 import { getTagColor } from "@/lib/tags";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { BarChart3, Users, AlertTriangle, Heart } from "lucide-react";
-
-const groupNames = [
-  "第一组", "第二组", "第三组", "第四组", "第五组",
-  "第六组", "第七组", "第八组", "第九组", "第十组",
-];
+import { useToast } from "@/components/ui/Toast";
+import { GROUP_NAMES } from "@/lib/constants";
 
 export default function StatisticsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [hRes, vRes] = await Promise.all([
-          fetch(apiUrl("/api/households")),
-          fetch(apiUrl("/api/visits")),
-        ]);
-        const hData = await hRes.json();
-        const vData = await vRes.json();
+    let cancelled = false;
+    Promise.all([apiFetch("/api/households"), apiFetch("/api/visits")])
+      .then(([hData, vData]) => {
+        if (cancelled) return;
         setHouseholds(Array.isArray(hData) ? hData : []);
         setVisits(Array.isArray(vData) ? vData : []);
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+        toast("加载数据失败", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   if (loading) {
     return (
@@ -52,7 +49,7 @@ export default function StatisticsPage() {
   const dujuCount = households.filter((h) => safeTags(h).includes("独居老人")).length;
 
   // Per-group household counts
-  const groupCounts = groupNames.map((g) => ({
+  const groupCounts = GROUP_NAMES.map((g) => ({
     name: g,
     count: households.filter((h) => h.groupName === g).length,
   }));

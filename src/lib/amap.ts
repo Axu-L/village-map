@@ -1,7 +1,31 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let amapPromise: Promise<any> | null = null;
+const loadedPlugins = new Set<string>();
 
-export function initAMap() {
-  if (amapPromise) return amapPromise;
+/**
+ * 统一的 AMap 加载入口，供 MapContainer / MapSettingsPicker / RoutePlan / Topbar 复用
+ * 单例缓存：首次调用加载 SDK + 指定插件；后续调用若请求新插件则动态补加载
+ * @param plugins 需要预加载的插件列表
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function initAMap(plugins: string[] = []): Promise<any> {
+  // 已有实例：检查是否需要补加载新插件
+  if (amapPromise) {
+    const missing = plugins.filter((p) => !loadedPlugins.has(p));
+    if (missing.length === 0) return amapPromise;
+    missing.forEach((p) => loadedPlugins.add(p));
+    // 在 AMap 就绪后通过 AMap.plugin() 动态加载缺失插件
+    amapPromise = amapPromise.then(
+      (AMap) =>
+        new Promise((resolve) => {
+          AMap.plugin(missing, () => resolve(AMap));
+        })
+    );
+    return amapPromise;
+  }
+
+  // 首次调用：记录插件并加载 SDK
+  plugins.forEach((p) => loadedPlugins.add(p));
 
   // 设置安全密钥（必须在加载地图之前）
   if (typeof window !== "undefined") {
@@ -15,8 +39,12 @@ export function initAMap() {
     return mod.default.load({
       key: process.env.NEXT_PUBLIC_AMAP_KEY!,
       version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar"],
+      plugins,
     });
+  }).then((AMap: any) => {
+    // 埋点：设置应用标识（强制）
+    AMap.getConfig().appname = "amap-jsapi-skill";
+    return AMap;
   });
 
   return amapPromise;

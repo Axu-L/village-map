@@ -28,6 +28,27 @@ const nextConfig: NextConfig = {
     "*.agent-sandbox-bj-d3-gw.trae.cn",
     "*.trae.cn",
   ],
+  // 安全响应头：全局基础防护 + 上传照片 noindex
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+        ],
+      },
+      {
+        // 上传的照片禁止搜索引擎索引
+        source: "/uploads/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, noarchive" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

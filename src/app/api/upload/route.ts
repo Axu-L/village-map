@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
@@ -20,51 +21,51 @@ export async function POST(request: Request) {
     }
 
     const urls: string[] = [];
+    const failures: { name: string; reason: string }[] = [];
 
     for (const file of files) {
       if (!(file instanceof File)) {
-        return Response.json({ message: "无效的文件" }, { status: 400 });
+        failures.push({ name: "未知", reason: "无效的文件" });
+        continue;
       }
 
       // 文件大小校验
-      if (file.size > MAX_FILE_SIZE) {
-        return Response.json(
-          { message: `文件 ${file.name} 超过 5MB 大小限制` },
-          { status: 400 }
-        );
+      if (file.size > MAX_UPLOAD_SIZE) {
+        failures.push({ name: file.name, reason: "超过 5MB 大小限制" });
+        continue;
       }
 
       // 文件类型校验
       if (!ALLOWED_TYPES.includes(file.type)) {
-        return Response.json(
-          { message: `文件 ${file.name} 格式不支持，仅支持 JPG/PNG/WebP` },
-          { status: 400 }
-        );
+        failures.push({ name: file.name, reason: "格式不支持，仅支持 JPG/PNG/WebP" });
+        continue;
       }
 
       // 扩展名校验
       const ext = path.extname(file.name).toLowerCase();
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        return Response.json(
-          { message: `文件 ${file.name} 扩展名不支持` },
-          { status: 400 }
-        );
+        failures.push({ name: file.name, reason: "扩展名不支持" });
+        continue;
       }
 
-      // 生成唯一文件名
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(2, 8);
-      const filename = `${timestamp}-${random}${ext}`;
+      try {
+        // 用 crypto.randomUUID() 生成唯一文件名，避免碰撞
+        const filename = `${crypto.randomUUID()}${ext}`;
 
-      // 保存文件
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, buffer);
+        // 保存文件
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, buffer);
 
-      urls.push(`/uploads/${filename}`);
+        urls.push(`/uploads/${filename}`);
+      } catch (err) {
+        console.error(`保存文件 ${file.name} 失败`, err);
+        failures.push({ name: file.name, reason: "保存失败" });
+      }
     }
 
-    return Response.json({ urls });
+    // 即使部分失败也返回已成功的 urls + 失败列表
+    return Response.json({ urls, failures });
   } catch (error) {
     console.error("上传失败", error);
     return Response.json({ message: "文件上传失败" }, { status: 500 });

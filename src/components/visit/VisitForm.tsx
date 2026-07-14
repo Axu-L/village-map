@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, FormEvent, useRef } from "react";
-import { X, Upload, Image, Loader2 } from "lucide-react";
-import { apiUrl, assetUrl } from "@/lib/api";
+import { X, Upload, Loader2 } from "lucide-react";
+import { assetUrl, apiFetch } from "@/lib/api";
+import { getVisitorDefault } from "@/lib/constants";
 
 interface VisitFormProps {
   householdId: number;
@@ -22,7 +23,7 @@ export function VisitForm({
   const [visitDate, setVisitDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [visitor, setVisitor] = useState("管理员");
+  const [visitor, setVisitor] = useState(getVisitorDefault());
   const [content, setContent] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
@@ -49,23 +50,16 @@ export function VisitForm({
         formData.append("file", file);
       });
 
-      const res = await fetch(apiUrl("/api/upload"), {
+      const data = await apiFetch("/api/upload", {
         method: "POST",
         body: formData,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setUploadError(data.message || "上传失败");
-        return;
-      }
-
       if (data.urls && Array.isArray(data.urls)) {
         setImages((prev) => [...prev, ...data.urls]);
       }
-    } catch {
-      setUploadError("网络错误，上传失败");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "上传失败");
     } finally {
       setUploading(false);
     }
@@ -115,7 +109,7 @@ export function VisitForm({
             <span className="eyebrow">{householdName}</span>
             <h2>新增走访</h2>
           </div>
-          <button className="close-button" onClick={onClose}>
+          <button className="close-button" aria-label="关闭" onClick={onClose}>
             <X size={20} />
           </button>
         </header>

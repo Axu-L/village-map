@@ -1,11 +1,11 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import type { Household, Member, Visit } from "@/types";
+import type { Household, Member, Tag, Visit } from "@/types";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { maskPhone } from "@/lib/utils";
 import { allTags, getTagColor } from "@/lib/tags";
-import { apiUrl, assetUrl } from "@/lib/api";
+import { assetUrl, apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
 import {
@@ -64,53 +64,53 @@ export default function HouseholdDetailPage({
   }, [household]);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchData() {
       try {
-        const [hRes, mRes, vRes] = await Promise.all([
-          fetch(apiUrl(`/api/households/${id}`)),
-          fetch(apiUrl(`/api/members?householdId=${id}`)),
-          fetch(apiUrl(`/api/visits?householdId=${id}`)),
+        const [hData, mData, vData] = await Promise.all([
+          apiFetch(`/api/households/${id}`),
+          apiFetch(`/api/members?householdId=${id}`),
+          apiFetch(`/api/visits?householdId=${id}`),
         ]);
 
-        if (!hRes.ok) throw new Error("住户不存在");
-
-        const hData = await hRes.json();
-        const mData = await mRes.json();
-        const vData = await vRes.json();
-
+        if (cancelled) return;
         setHousehold(hData);
         setMembers(Array.isArray(mData) ? mData : []);
         setVisits(Array.isArray(vData) ? vData : []);
       } catch (err) {
         console.error(err);
+        if (!cancelled) toast("加载数据失败", "error");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   // 保存编辑住户
   const handleSaveEditHousehold = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(apiUrl(`/api/households/${id}`), {
+      const updated = await apiFetch(`/api/households/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setHousehold(updated);
-        setShowEditHousehold(false);
-        setEditPickPosition(null);
-        toast("住户信息已更新", "success");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast(err.message || "保存失败", "error");
+      setHousehold(updated);
+      setShowEditHousehold(false);
+      setEditPickPosition(null);
+      // 清除 URL 中的 edit 参数，防止 household 变化后重新触发编辑模式
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("edit");
+        window.history.replaceState({}, "", url.pathname + url.search);
       }
+      toast("住户信息已更新", "success");
     } catch (err) {
       console.error(err);
-      toast("网络错误，保存失败", "error");
+      toast(err instanceof Error ? err.message : "保存失败", "error");
     }
   };
 
@@ -118,18 +118,14 @@ export default function HouseholdDetailPage({
   const handleDeleteMember = async (memberId: number) => {
     if (!confirm("确定要删除该成员吗？")) return;
     try {
-      const res = await fetch(apiUrl(`/api/members/${memberId}`), {
+      await apiFetch(`/api/members/${memberId}`, {
         method: "DELETE",
       });
-      if (res.ok) {
-        setMembers((prev) => prev.filter((m) => m.id !== memberId));
-        toast("成员已删除", "success");
-      } else {
-        toast("删除失败", "error");
-      }
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      toast("成员已删除", "success");
     } catch (err) {
       console.error(err);
-      toast("网络错误，删除失败", "error");
+      toast(err instanceof Error ? err.message : "删除失败", "error");
     }
   };
 
@@ -279,7 +275,7 @@ export default function HouseholdDetailPage({
           <span>{household.groupName}</span>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {household.tags.map((tag) => (
+          {(Array.isArray(household.tags) ? household.tags : []).map((tag) => (
             <TagBadge key={tag} tag={tag} />
           ))}
         </div>
@@ -592,7 +588,7 @@ export default function HouseholdDetailPage({
                       >
                         {v.content}
                       </p>
-                      {v.concerns.length > 0 && (
+                      {(Array.isArray(v.concerns) ? v.concerns : []).length > 0 && (
                         <div
                           style={{
                             display: "flex",
@@ -601,7 +597,7 @@ export default function HouseholdDetailPage({
                             flexWrap: "wrap",
                           }}
                         >
-                          {v.concerns.map((c) => (
+                          {(Array.isArray(v.concerns) ? v.concerns : []).map((c) => (
                             <span
                               key={c}
                               style={{
@@ -768,8 +764,7 @@ export default function HouseholdDetailPage({
           onSuccess={() => {
             setShowAddMember(false);
             // Refresh members list
-            fetch(apiUrl(`/api/members?householdId=${id}`))
-              .then((res) => res.json())
+            apiFetch(`/api/members?householdId=${id}`)
               .then((data) => setMembers(Array.isArray(data) ? data : []))
               .catch(() => {});
           }}
@@ -784,8 +779,7 @@ export default function HouseholdDetailPage({
           onClose={() => setEditingMember(null)}
           onSuccess={() => {
             setEditingMember(null);
-            fetch(apiUrl(`/api/members?householdId=${id}`))
-              .then((res) => res.json())
+            apiFetch(`/api/members?householdId=${id}`)
               .then((data) => setMembers(Array.isArray(data) ? data : []))
               .catch(() => {});
           }}
@@ -847,12 +841,12 @@ function AddMemberModal({
     initialData?.age != null ? String(initialData.age) : ""
   );
   const [gender, setGender] = useState(initialData?.gender || "男");
-  const [selectedTags, setSelectedTags] = useState<string[]>(
+  const [selectedTags, setSelectedTags] = useState<Tag[]>(
     initialData?.tags || []
   );
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (tag: Tag) => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
@@ -874,22 +868,19 @@ function AddMemberModal({
         gender,
         tags: selectedTags,
       };
-      const url = isEdit
-        ? apiUrl(`/api/members/${initialData!.id}`)
-        : apiUrl("/api/members");
+      const path = isEdit
+        ? `/api/members/${initialData!.id}`
+        : "/api/members";
       const method = isEdit ? "PUT" : "POST";
-      const res = await fetch(url, {
+      await apiFetch(path, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        throw new Error(isEdit ? "更新失败" : "添加失败");
-      }
       toast(isEdit ? "成员已更新" : "成员已添加", "success");
       onSuccess();
-    } catch {
-      toast(isEdit ? "更新成员失败，请重试" : "添加成员失败，请重试", "error");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : isEdit ? "更新成员失败，请重试" : "添加成员失败，请重试", "error");
     } finally {
       setSubmitting(false);
     }

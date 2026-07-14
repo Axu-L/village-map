@@ -24,3 +24,59 @@ export function assetUrl(path: string): string {
   if (!path.startsWith("/")) path = "/" + path;
   return API_BASE + path;
 }
+
+/**
+ * 带有 HTTP 状态码的错误类，方便调用方区分 401/403/500 等
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * 统一的 API 请求封装：自动校验 res.ok，失败时抛 ApiError（含状态码）
+ * 自动携带 Authorization header（从 localStorage 读取 token）
+ * 替代各页面裸 fetch + 手动 r.json() 的模式
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function apiFetch(path: string, options?: RequestInit): Promise<any> {
+  // 自动注入 token（仅浏览器环境）
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string>),
+  };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
+  const res = await fetch(apiUrl(path), { ...options, headers });
+  if (!res.ok) {
+    let message = `请求失败 (${res.status})`;
+    try {
+      const err = await res.json();
+      message = err.message || message;
+    } catch {
+      // 响应非 JSON，使用默认 message
+    }
+    // 401：token 过期或无效，清除登录态并跳转登录页（仅浏览器环境）
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = apiUrl("/login");
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  // 成功分支：安全解析 JSON，非 JSON 响应返回 null
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}

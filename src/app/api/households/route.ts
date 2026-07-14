@@ -1,93 +1,19 @@
 import { db } from "@/db";
 import { households } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
+import { parseRow } from "@/lib/db-utils";
+import { validateLat, validateLng, validatePhone, validateGroupName, validateMemberCount } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
-const demoHouseholds = [
-  {
-    householdName: "张三家",
-    headName: "张三",
-    phone: "13800138001",
-    groupName: "第五组",
-    address: "花园村第五组 32 号",
-    memberCount: 4,
-    tags: '["脱贫户","独居老人"]',
-    latitude: "30.5234",
-    longitude: "114.3431",
-    lastVisitAt: "2026-07-10",
-  },
-  {
-    householdName: "李秀兰家",
-    headName: "李秀兰",
-    phone: "13900139008",
-    groupName: "第三组",
-    address: "花园村第三组 18 号",
-    memberCount: 2,
-    tags: '["监测户"]',
-    latitude: "30.5268",
-    longitude: "114.3387",
-    lastVisitAt: "2026-07-02",
-  },
-  {
-    householdName: "王建国家",
-    headName: "王建国",
-    phone: "13700137022",
-    groupName: "第七组",
-    address: "花园村第七组 6 号",
-    memberCount: 3,
-    tags: '["残疾人","脱贫户"]',
-    latitude: "30.5201",
-    longitude: "114.3484",
-    lastVisitAt: "2026-06-25",
-  },
-  {
-    householdName: "陈小兰家",
-    headName: "陈小兰",
-    phone: "13600136056",
-    groupName: "第一组",
-    address: "花园村第一组 46 号",
-    memberCount: 1,
-    tags: '["独居老人"]',
-    latitude: "30.5302",
-    longitude: "114.3332",
-    lastVisitAt: "2026-06-18",
-  },
-  {
-    householdName: "刘志强家",
-    headName: "刘志强",
-    phone: "13500135092",
-    groupName: "第九组",
-    address: "花园村第九组 9 号",
-    memberCount: 5,
-    tags: '["留守儿童"]',
-    latitude: "30.5177",
-    longitude: "114.3532",
-    lastVisitAt: "2026-07-08",
-  },
-];
-
-// 将 SQLite 返回的 tags JSON 字符串解析为数组
-function parseRow(row: any) {
-  return {
-    ...row,
-    tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags || [],
-  };
-}
-
 export async function GET() {
   try {
-    let data = await db.select().from(households).orderBy(asc(households.id));
-    if (data.length === 0) {
-      await db.insert(households).values(demoHouseholds as any);
-      data = await db.select().from(households).orderBy(asc(households.id));
-    }
+    const data = await db.select().from(households).orderBy(asc(households.id));
     return Response.json(data.map(parseRow));
   } catch (error) {
-    console.error("Unable to load households, using demo data", error);
-    return Response.json(
-      demoHouseholds.map((d) => ({ ...d, tags: JSON.parse(d.tags) }))
-    );
+    console.error("Unable to load households", error);
+    // 不再返回 demo 数据掩盖故障，明确返回错误
+    return Response.json({ message: "无法读取住户数据" }, { status: 500 });
   }
 }
 
@@ -97,6 +23,21 @@ export async function POST(request: Request) {
     const required = ["headName", "phone", "groupName", "address", "latitude", "longitude"];
     if (required.some((key) => !body[key])) {
       return Response.json({ message: "请完整填写住户信息与地图定位" }, { status: 400 });
+    }
+
+    // 输入校验
+    if (!validatePhone(body.phone.trim())) {
+      return Response.json({ message: "手机号格式不正确" }, { status: 400 });
+    }
+    if (!validateGroupName(body.groupName)) {
+      return Response.json({ message: "组别不合法" }, { status: 400 });
+    }
+    if (!validateLat(body.latitude) || !validateLng(body.longitude)) {
+      return Response.json({ message: "坐标格式不正确" }, { status: 400 });
+    }
+    const mc = Number(body.memberCount) || 1;
+    if (!validateMemberCount(mc)) {
+      return Response.json({ message: "家庭成员数不合法（1-50）" }, { status: 400 });
     }
 
     // 重复校验：户主姓名 + 组别 + 电话 完全相同视为重复
@@ -128,7 +69,7 @@ export async function POST(request: Request) {
         phone: phoneTrim,
         groupName: groupNameVal,
         address: body.address.trim(),
-        memberCount: Number(body.memberCount) || 1,
+        memberCount: mc,
         tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []) as any,
         latitude: String(body.latitude),
         longitude: String(body.longitude),

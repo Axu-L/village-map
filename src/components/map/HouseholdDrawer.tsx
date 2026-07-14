@@ -36,7 +36,7 @@ export function HouseholdDrawer({
             {household.groupName}
           </span>
         </div>
-        <button className="close-button" onClick={onClose}>
+        <button className="close-button" aria-label="关闭" onClick={onClose}>
           <X size={20} />
         </button>
       </div>

@@ -8,52 +8,61 @@ import { allTags, getTagColor } from "@/lib/tags";
 import { maskPhone } from "@/lib/utils";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { useToast } from "@/components/ui/Toast";
-import type { Household } from "@/types";
-import { apiUrl } from "@/lib/api";
+import { Modal } from "@/components/ui/Modal";
+import type { Household, Tag } from "@/types";
+import { apiFetch } from "@/lib/api";
 
 export default function PeoplePage() {
   const { toast } = useToast();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTag, setActiveTag] = useState<Tag | null>(null);
   // 编辑弹窗状态
   const [editing, setEditing] = useState<Household | null>(null);
   const [editPickPosition, setEditPickPosition] = useState<{
     lng: number;
     lat: number;
   } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch(apiUrl("/api/households"));
-        const data = await res.json();
+    let cancelled = false;
+    apiFetch("/api/households")
+      .then((data) => {
+        if (cancelled) return;
         setHouseholds(Array.isArray(data) ? data : []);
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+        toast("加载数据失败", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
 
-  const handleDelete = async (e: React.MouseEvent, id: number) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: number) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("确定要删除该住户吗？关联的走访记录和家庭成员将一并删除。")) return;
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget === null) return;
+    const id = deleteTarget;
     try {
-      const res = await fetch(apiUrl(`/api/households/${id}`), { method: "DELETE" });
-      if (res.ok) {
-        setHouseholds((prev) => prev.filter((h) => h.id !== id));
-        toast("住户已删除", "success");
-      } else {
-        toast("删除失败", "error");
-      }
+      await apiFetch(`/api/households/${id}`, { method: "DELETE" });
+      setHouseholds((prev) => prev.filter((h) => h.id !== id));
+      toast("住户已删除", "success");
     } catch (err) {
-      console.error(err);
-      toast("网络错误，删除失败", "error");
+      toast(err instanceof Error ? err.message : "删除失败", "error");
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -78,26 +87,17 @@ export default function PeoplePage() {
   const handleSaveEdit = async (data: Record<string, unknown>) => {
     if (!editing) return;
     try {
-      const res = await fetch(apiUrl(`/api/households/${editing.id}`), {
+      const updated = await apiFetch(`/api/households/${editing.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setHouseholds((prev) =>
-          prev.map((h) => (h.id === editing.id ? updated : h))
-        );
-        setEditing(null);
-        setEditPickPosition(null);
-        toast("住户信息已更新", "success");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast(err.message || "保存失败", "error");
-      }
+      setHouseholds((prev) => prev.map((h) => (h.id === editing.id ? updated : h)));
+      setEditing(null);
+      setEditPickPosition(null);
+      toast("住户信息已更新", "success");
     } catch (err) {
-      console.error(err);
-      toast("网络错误，保存失败", "error");
+      toast(err instanceof Error ? err.message : "保存失败", "error");
     }
   };
 
@@ -219,6 +219,7 @@ export default function PeoplePage() {
               style={{ textDecoration: "none" }}
             >
               <div
+                className="people-card"
                 style={{
                   background: "#fff",
                   borderRadius: 14,
@@ -228,14 +229,6 @@ export default function PeoplePage() {
                   transition: "box-shadow 0.2s",
                   border: "1px solid #f0f2f5",
                   position: "relative",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.boxShadow =
-                    "0 4px 16px rgba(0,0,0,0.1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.boxShadow =
-                    "0 1px 4px rgba(0,0,0,0.06)";
                 }}
               >
                 {/* Household name & head */}
@@ -324,6 +317,7 @@ export default function PeoplePage() {
                     <button
                       onClick={(e) => handleEditClick(e, h)}
                       title="编辑"
+                      className="people-btn-edit"
                       style={{
                         width: 28,
                         height: 28,
@@ -337,20 +331,13 @@ export default function PeoplePage() {
                         padding: 0,
                         transition: "background 0.2s",
                       }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "rgba(47,128,237,0.18)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "rgba(47,128,237,0.08)";
-                      }}
                     >
                       <Pencil size={13} color="#2f80ed" />
                     </button>
                     <button
-                      onClick={(e) => handleDelete(e, h.id)}
+                      onClick={(e) => handleDeleteClick(e, h.id)}
                       title="删除"
+                      className="people-btn-delete"
                       style={{
                         width: 28,
                         height: 28,
@@ -363,14 +350,6 @@ export default function PeoplePage() {
                         justifyContent: "center",
                         padding: 0,
                         transition: "background 0.2s",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "rgba(235,87,87,0.18)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "rgba(235,87,87,0.08)";
                       }}
                     >
                       <Trash2 size={13} color="#eb5757" />
@@ -410,6 +389,40 @@ export default function PeoplePage() {
         />
       )}
 
+      {/* 删除确认弹窗 */}
+      <Modal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="确认删除"
+        subtitle="此操作不可撤销"
+      >
+        <div style={{ padding: "0 24px 24px" }}>
+          <p style={{ fontSize: 14, color: "#5a6577", lineHeight: 1.6, marginBottom: 20 }}>
+            确定要删除该住户吗？关联的走访记录和家庭成员将一并删除。
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <button
+              onClick={() => setDeleteTarget(null)}
+              style={{
+                padding: "8px 20px", borderRadius: 8, border: "1px solid #e4e8ef",
+                background: "#fff", color: "#5a6577", fontSize: 14, cursor: "pointer",
+              }}
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmDelete}
+              style={{
+                padding: "8px 20px", borderRadius: 8, border: "none",
+                background: "#eb5757", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              确认删除
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Responsive overrides via media query — inline media queries are not possible, so we add a style tag */}
       <style>{`
         @media (max-width: 900px) {
@@ -422,6 +435,9 @@ export default function PeoplePage() {
             grid-template-columns: 1fr !important;
           }
         }
+        .people-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important; }
+        .people-btn-edit:hover { background: rgba(47,128,237,0.18) !important; }
+        .people-btn-delete:hover { background: rgba(235,87,87,0.18) !important; }
       `}</style>
     </div>
   );

@@ -3,6 +3,7 @@
 import { Bell, MapPin, Search, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { initAMap } from "@/lib/amap";
 
 // 全局搜索事件，地图页面监听此事件
 export function emitGlobalSearch(value: string) {
@@ -25,6 +26,7 @@ export function Topbar() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autoCompleteRef = useRef<any>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -35,16 +37,7 @@ export function Topbar() {
   // 懒加载 AutoComplete 插件（首次输入时才加载，避免非地图页面的无效开销）
   const ensureAutoComplete = async () => {
     if (autoCompleteRef.current) return autoCompleteRef.current;
-    const AMapLoader = (await import("@amap/amap-jsapi-loader")).default;
-    window._AMapSecurityConfig = {
-      securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-    };
-    const AMap = await AMapLoader.load({
-      key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-      version: "2.0",
-      plugins: ["AMap.AutoComplete"],
-    });
-    AMap.getConfig().appname = "amap-jsapi-skill";
+    const AMap = await initAMap(["AMap.AutoComplete"]);
     autoCompleteRef.current = new AMap.AutoComplete({ datatype: "poi" });
     return autoCompleteRef.current;
   };
@@ -58,7 +51,9 @@ export function Topbar() {
     if (trimmed.length > 1) {
       ensureAutoComplete()
         .then((auto) => {
+          if (!mountedRef.current) return;
           auto.search(trimmed, (status: string, result: any) => {
+            if (!mountedRef.current) return;
             if (status === "complete" && result?.tips?.length) {
               const valid: LocationTip[] = result.tips
                 .filter((t: any) => t.name && t.district)
@@ -118,7 +113,10 @@ export function Topbar() {
       }
     };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    return () => {
+      mountedRef.current = false;
+      document.removeEventListener("mousedown", onClick);
+    };
   }, []);
 
   return (
@@ -155,7 +153,7 @@ export function Topbar() {
         )}
       </div>
       <div className="top-actions">
-        <button className="icon-button notification"><Bell size={19} /><i /></button>
+        <button className="icon-button notification" disabled title="通知功能开发中" aria-label="通知（未启用）"><Bell size={19} /><i /></button>
         <button className="profile" onClick={handleLogout} title="退出登录">
           <span>管</span>
           <strong>管理员</strong>

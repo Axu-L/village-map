@@ -23,3 +23,11 @@ next-env.d.ts
 
 # deploy artifacts (zip only)
 village-map-deploy.zip
+
+# environment variables (contains JWT_SECRET / AMAP keys)
+.env*
+!.env.example
+
+# user uploads (runtime-generated sensitive photos, must not be committed)
+public/uploads/*
+!public/uploads/.gitkeep

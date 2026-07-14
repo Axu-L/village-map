@@ -26,7 +26,7 @@ export function Modal({
             {subtitle && <span className="eyebrow">{subtitle}</span>}
             <h2>{title}</h2>
           </div>
-          <button className="close-button" onClick={onClose}>
+          <button className="close-button" aria-label="关闭" onClick={onClose}>
             <X size={20} />
           </button>
         </header>

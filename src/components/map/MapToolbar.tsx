@@ -2,10 +2,11 @@
 
 import { allTags, getTagColor } from "@/lib/tags";
 import { Plus, Navigation } from "lucide-react";
+import type { Tag } from "@/types";
 
 interface MapToolbarProps {
-  filterTags: string[];
-  onFilterChange: (tags: string[]) => void;
+  filterTags: Tag[];
+  onFilterChange: (tags: Tag[]) => void;
   resultCount: number;
   totalCount: number;
   onAddClick: () => void;
@@ -20,7 +21,7 @@ export function MapToolbar({
   onAddClick,
   onRouteClick,
 }: MapToolbarProps) {
-  const toggleTag = (tag: string) => {
+  const toggleTag = (tag: Tag) => {
     if (filterTags.includes(tag)) {
       onFilterChange(filterTags.filter((t) => t !== tag));
     } else {

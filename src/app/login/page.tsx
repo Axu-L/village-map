@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { apiUrl } from "@/lib/api";
@@ -11,6 +11,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 已登录用户直接跳转地图页
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("token")) {
+      router.replace("/map");
+    }
+  }, [router]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,7 +37,8 @@ export default function LoginPage() {
         localStorage.setItem("user", JSON.stringify(data.user));
         router.push("/map");
       } else {
-        const data = await res.json();
+        // 容错：服务器可能返回非 JSON（如网关 502 HTML），用 .catch 兜底
+        const data = await res.json().catch(() => ({} as { message?: string }));
         setError(data.message || "登录失败");
       }
     } catch {
@@ -87,7 +95,10 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="login-hint">演示账号：admin / admin123</p>
+        {/* 仅开发环境显示演示账号提示 */}
+        {process.env.NODE_ENV === "development" && (
+          <p className="login-hint">演示账号：admin / admin123</p>
+        )}
       </div>
 
       <style jsx>{`

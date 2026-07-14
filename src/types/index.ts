@@ -18,10 +18,11 @@ export type Household = {
   groupName: string;
   address: string;
   memberCount: number;
-  tags: string[];
+  tags: Tag[];
   latitude: string;
   longitude: string;
   lastVisitAt: string | null;
+  createdAt?: string;
   // 最近一次带照片的走访图片URL（前端聚合，非数据库字段）
   lastVisitImage?: string;
 };
@@ -47,7 +48,8 @@ export type Member = {
   relation: string;
   age: number | null;
   gender: string | null;
-  tags: string[];
+  tags: Tag[];
+  createdAt?: string;
 };
 
 // 用户

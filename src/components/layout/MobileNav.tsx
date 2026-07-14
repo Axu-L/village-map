@@ -2,14 +2,14 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Home, Menu, Plus, Users } from "lucide-react";
+import { BarChart3, Home, Plus, Settings, Users } from "lucide-react";
 
 const mobileNavItems = [
   { href: "/map", label: "地图", icon: Home },
   { href: "/people", label: "人员", icon: Users },
   { href: "/map", label: "新增", icon: Plus, isAdd: true },
   { href: "/statistics", label: "统计", icon: BarChart3 },
-  { href: "/settings", label: "我的", icon: Menu },
+  { href: "/settings", label: "我的", icon: Settings },
 ];
 
 export function MobileNav() {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Download, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
-import type { Household } from "@/types";
-import { apiUrl } from "@/lib/api";
+import type { Household, Tag } from "@/types";
+import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 interface ParsedRow {
@@ -13,7 +13,7 @@ interface ParsedRow {
   groupName: string;
   address: string;
   memberCount: number;
-  tags: string[];
+  tags: Tag[];
   latitude: string;
   longitude: string;
 }
@@ -32,19 +32,22 @@ export default function TransferPage() {
   } | null>(null);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch(apiUrl("/api/households"));
-        const data = await res.json();
+    let cancelled = false;
+    apiFetch("/api/households")
+      .then((data) => {
+        if (cancelled) return;
         setHouseholds(Array.isArray(data) ? data : []);
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+        toast("加载数据失败", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   function handleExport() {
     if (households.length === 0) return;
@@ -126,7 +129,7 @@ export default function TransferPage() {
         groupName,
         address,
         memberCount: Number(cols[6]) || 1,
-        tags: (cols[7] || "").split("|").map((t) => t.trim()).filter(Boolean),
+        tags: (cols[7] || "").split("|").map((t) => t.trim()).filter(Boolean) as Tag[],
         latitude: (cols[8] || "0").trim(),
         longitude: (cols[9] || "0").trim(),
       });
@@ -188,20 +191,20 @@ export default function TransferPage() {
 
     for (const row of previewRows) {
       try {
-        const res = await fetch(apiUrl("/api/households"), {
+        await apiFetch("/api/households", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(row),
         });
-        if (res.ok) {
-          success++;
-        } else if (res.status === 409) {
+        success++;
+      } catch (err) {
+        // 409 冲突算跳过，其他算失败
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("已存在") || msg.includes("409")) {
           skipped++;
         } else {
           failed++;
         }
-      } catch {
-        failed++;
       }
     }
 
@@ -210,8 +213,7 @@ export default function TransferPage() {
     toast(`导入完成：成功 ${success} 条，跳过 ${skipped} 条，失败 ${failed} 条`, success > 0 ? "success" : "error");
 
     // 刷新列表
-    fetch(apiUrl("/api/households"))
-      .then((r) => r.json())
+    apiFetch("/api/households")
       .then((data) => setHouseholds(Array.isArray(data) ? data : []))
       .catch(() => {});
 

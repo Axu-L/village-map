@@ -8,8 +8,8 @@ import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { VisitForm } from "@/components/visit/VisitForm";
 import { RoutePlan } from "@/components/map/RoutePlan";
 import { useToast } from "@/components/ui/Toast";
-import type { Household, Visit } from "@/types";
-import { apiUrl, assetUrl } from "@/lib/api";
+import type { Household, Tag, Visit } from "@/types";
+import { assetUrl, apiFetch } from "@/lib/api";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -19,7 +19,7 @@ function MapPageContent() {
 
   const [households, setHouseholds] = useState<Household[]>([]);
   const [selected, setSelected] = useState<Household | null>(null);
-  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterTags, setFilterTags] = useState<Tag[]>([]);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showVisit, setShowVisit] = useState(false);
@@ -59,11 +59,13 @@ function MapPageContent() {
 
   // 加载住户数据 + 走访记录（用于标记图片）
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
-      fetch(apiUrl("/api/households")).then((r) => r.json()),
-      fetch(apiUrl("/api/visits")).then((r) => r.json()),
+      apiFetch("/api/households"),
+      apiFetch("/api/visits"),
     ])
       .then(([hData, vData]) => {
+        if (cancelled) return;
         if (Array.isArray(hData)) {
           const visits: Visit[] = Array.isArray(vData) ? vData : [];
           // 按时间倒序，取每个住户最近一张走访照片
@@ -84,12 +86,15 @@ function MapPageContent() {
             imageMap.has(h.id) ? { ...h, lastVisitImage: imageMap.get(h.id) } : h
           );
           setHouseholds(enriched);
-        } else {
-          console.error("住户数据格式异常", hData);
         }
       })
-      .catch(console.error);
-  }, []);
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        toast("加载数据失败", "error");
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   // URL 参数触发新增
   useEffect(() => {
@@ -119,16 +124,17 @@ function MapPageContent() {
 
   // 筛选逻辑
   const filtered = households.filter((h) => {
+    if (!h || typeof h.headName !== "string") return false;
     const tags = Array.isArray(h.tags) ? h.tags : [];
     const matchTag =
       filterTags.length === 0 || tags.some((t) => filterTags.includes(t));
     const q = search.toLowerCase();
     const matchSearch =
       !q ||
-      h.headName.toLowerCase().includes(q) ||
-      h.householdName.toLowerCase().includes(q) ||
-      h.phone.includes(q) ||
-      h.groupName.includes(q);
+      (h.headName || "").toLowerCase().includes(q) ||
+      (h.householdName || "").toLowerCase().includes(q) ||
+      (h.phone || "").includes(q) ||
+      (h.groupName || "").includes(q);
     return matchTag && matchSearch;
   });
 
@@ -142,52 +148,34 @@ function MapPageContent() {
 
   const handleSaveHousehold = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(apiUrl("/api/households"), {
+      const created = await apiFetch("/api/households", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        const created = await res.json();
-        setHouseholds((prev) => [...prev, created]);
-        setShowAdd(false);
-        setPickingMode(false);
-        setPickPosition(null);
-        toast("住户已添加", "success");
-      } else if (res.status === 409) {
-        const err = await res.json();
-        toast(err.message || "该住户已存在", "error");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast(err.message || "保存失败", "error");
-      }
+      setHouseholds((prev) => [...prev, created]);
+      setShowAdd(false);
+      setPickingMode(false);
+      setPickPosition(null);
+      toast("住户已添加", "success");
     } catch (err) {
-      console.error("保存失败", err);
-      toast("网络错误，保存失败", "error");
+      toast(err instanceof Error ? err.message : "保存失败", "error");
     }
   };
 
   const handleSaveVisit = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(apiUrl("/api/visits"), {
+      await apiFetch("/api/visits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        setShowVisit(false);
-        setVisitHousehold(null);
-        toast("走访记录已保存", "success");
-        fetch(apiUrl("/api/households"))
-          .then((r) => r.json())
-          .then(setHouseholds);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast(err.message || "保存走访失败", "error");
-      }
+      setShowVisit(false);
+      setVisitHousehold(null);
+      toast("走访记录已保存", "success");
+      apiFetch("/api/households").then(setHouseholds).catch(() => {});
     } catch (err) {
-      console.error("保存走访失败", err);
-      toast("网络错误，保存走访失败", "error");
+      toast(err instanceof Error ? err.message : "保存走访失败", "error");
     }
   };
 
@@ -288,7 +276,7 @@ function MapPageContent() {
             <div className="route-info-card">
               <div className="route-info-header">
                 <span>走访路线</span>
-                <button onClick={() => {
+                <button aria-label="关闭" onClick={() => {
                   setRoutePlan(null); setRouteInfo(null); setRouteCount(0);
                   setNavSteps([]); setShowNavPanel(false); setCurrentStepIdx(0);
                   setRouteHouseholds([]);

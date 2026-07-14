@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Household } from "@/types";
 import type { RoutePlanParams } from "@/components/map/MapContainer";
+import { initAMap, DEFAULT_CENTER } from "@/lib/amap";
 import { X, Navigation, Car, Footprints, Bike, MapPin, Check, Volume2, VolumeX } from "lucide-react";
 
 interface RoutePlanProps {
@@ -27,16 +28,11 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
 
   // 使用 AMap 定位获取当前位置（与地图坐标系一致 GCJ02）
   useEffect(() => {
-    import("@amap/amap-jsapi-loader").then((AMapLoader) => {
-      window._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-      };
-      AMapLoader.default.load({
-        key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-        version: "2.0",
-        plugins: ["AMap.Geocoder", "AMap.Geolocation"],
-      }).then((AMap: any) => {
-        AMap.getConfig().appname = "amap-jsapi-skill";
+    let cancelled = false;
+
+    initAMap(["AMap.Geocoder", "AMap.Geolocation"])
+      .then((AMap: any) => {
+        if (cancelled) return;
 
         // 用 AMap.Geolocation 获取当前定位（GCJ02坐标系，与地图一致）
         const geolocation = new AMap.Geolocation({
@@ -49,6 +45,7 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
         });
 
         geolocation.getCurrentPosition((status: string, result: any) => {
+          if (cancelled) return;
           if (status === "complete") {
             const lng = result.position.getLng();
             const lat = result.position.getLat();
@@ -56,6 +53,7 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
             // 逆地理编码
             const geocoder = new AMap.Geocoder();
             geocoder.getAddress([lng, lat], (geoStatus: string, geoResult: any) => {
+              if (cancelled) return;
               if (geoStatus === "complete" && geoResult.info === "OK") {
                 setCurrentAddress(geoResult.regeocode.formattedAddress);
               } else {
@@ -64,15 +62,20 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
             });
           } else {
             // 定位失败，使用默认位置
-            setCurrentPos({ lng: 114.34, lat: 30.52 });
+            setCurrentPos({ lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] });
             setCurrentAddress("花园村（默认位置）");
           }
         });
-      }).catch(() => {
-        setCurrentPos({ lng: 114.34, lat: 30.52 });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCurrentPos({ lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] });
         setCurrentAddress("花园村（默认位置）");
       });
-    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleHousehold = (id: number) => {
@@ -145,7 +148,7 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
       >
         <header>
           <h2>开始走访</h2>
-          <button className="close-button" onClick={onClose}>
+          <button className="close-button" aria-label="关闭" onClick={onClose}>
             <X size={20} />
           </button>
         </header>

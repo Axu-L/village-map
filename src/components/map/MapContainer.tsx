@@ -3,7 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
-import { getMapSettings } from "@/lib/amap";
+import { getMapSettings, initAMap } from "@/lib/amap";
+import { GEOLOCATION_INTERVAL, VISIT_ARRIVE_THRESHOLD } from "@/lib/constants";
+
+/** HTML 转义，防止 marker content 中的存储型 XSS */
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AMapInstance: any = null;
@@ -92,33 +103,26 @@ export function MapContainer({
   visitHouseholdsRef.current = visitHouseholds;
   const onArriveHouseholdRef = useRef(onArriveHousehold);
   onArriveHouseholdRef.current = onArriveHousehold;
+  // deviceorientation 处理函数引用（cleanup 时需要移除监听）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleOrientationRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null);
 
   // 初始化地图
   useEffect(() => {
     if (!containerRef.current) return;
 
-    import("@amap/amap-jsapi-loader").then((AMapLoader) => {
-      window._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-      };
-
-      AMapLoader.default.load({
-        key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-        version: "2.0",
-        plugins: [
-          "AMap.Scale",
-          "AMap.Geolocation",
-          "AMap.ControlBar",
-          "AMap.Geocoder",
-          "AMap.Driving",
-          "AMap.Walking",
-          "AMap.Riding",
-          "AMap.PlaceSearch",
-        ],
-      })
-        .then((AMap: any) => {
-          AMap.getConfig().appname = "amap-jsapi-skill";
-          AMapInstance = AMap;
+    initAMap([
+      "AMap.Scale",
+      "AMap.Geolocation",
+      "AMap.ControlBar",
+      "AMap.Geocoder",
+      "AMap.Driving",
+      "AMap.Walking",
+      "AMap.Riding",
+      "AMap.PlaceSearch",
+    ])
+      .then((AMap: any) => {
+        AMapInstance = AMap;
 
           // 从 localStorage 读取用户配置的地图设置（兜底用内置默认值）
           const { center: userCenter, zoom: userZoom } = getMapSettings();
@@ -165,7 +169,7 @@ export function MapContainer({
           // 定位控件（隐藏默认按钮，我们用自定义按钮触发）
           const geolocation = new AMap.Geolocation({
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: GEOLOCATION_INTERVAL,
             zoomToAccuracy: true,
             GeoLocationFirst: true,
             showButton: false,
@@ -224,7 +228,7 @@ export function MapContainer({
                   const lat = Number(h.latitude);
                   if (isNaN(lng) || isNaN(lat)) return;
                   const dist = AMapInstance.GeometryUtil.distance(currentPos, [lng, lat]);
-                  if (dist <= 50) {
+                  if (dist <= VISIT_ARRIVE_THRESHOLD) {
                     visitedIdsRef.current.add(h.id);
                     onArriveHouseholdRef.current?.(h);
                   }
@@ -255,6 +259,8 @@ export function MapContainer({
               // 需要用户手势触发，这里先不请求，在定位按钮点击时请求
             } else {
               window.addEventListener("deviceorientation", handleOrientation);
+              // 存储引用供 cleanup 移除监听
+              handleOrientationRef.current = handleOrientation;
             }
           }
 
@@ -290,9 +296,17 @@ export function MapContainer({
         .catch((e: Error) => {
           console.error("地图加载失败", e);
         });
-    });
 
     return () => {
+      // 取消语音播报，防止组件卸载后语音继续
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      // 移除 deviceorientation 监听，防止内存泄漏
+      if (handleOrientationRef.current) {
+        window.removeEventListener("deviceorientation", handleOrientationRef.current);
+        handleOrientationRef.current = null;
+      }
       if (tempMarkerRef.current) {
         tempMarkerRef.current.setMap(null);
         tempMarkerRef.current = null;
@@ -401,12 +415,12 @@ export function MapContainer({
           ${isSelected ? `<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;background:${mainColor}33;animation:ping 1.8s infinite;"></div>` : ""}
           <div style="position:relative;z-index:2;display:grid;place-items:center;width:36px;height:36px;border:3px solid white;border-radius:50%;background:${mainColor};box-shadow:0 3px 10px ${mainColor}55;transition:transform .2s;${isSelected ? "transform:scale(1.15);" : ""}overflow:hidden;">
             ${family.lastVisitImage
-              ? `<img src="${family.lastVisitImage}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\\'18\\' height=\\'18\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'${iconPath}\\'/></svg>';" />`
+              ? `<img src="${escapeHtml(family.lastVisitImage)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\\'18\\' height=\\'18\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'${iconPath}\\'/></svg>';" />`
               : `<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="${iconPath}"/></svg>`
             }
           </div>
           ${tagCount > 1 ? `<div style="position:absolute;top:-4px;right:-4px;z-index:3;width:18px;height:18px;border-radius:50%;background:${isSelected ? "#2f80ed" : "#EB5757"};color:white;font-size:10px;font-weight:bold;display:grid;place-items:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.2);">${tagCount}</div>` : ""}
-          ${isSelected ? `<div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:6px;color:#2b405b;background:white;box-shadow:0 3px 10px rgba(34,55,75,.17);font-size:11px;font-weight:bold;white-space:nowrap;">${family.householdName}</div>` : ""}
+          ${isSelected ? `<div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:6px;color:#2b405b;background:white;box-shadow:0 3px 10px rgba(34,55,75,.17);font-size:11px;font-weight:bold;white-space:nowrap;">${escapeHtml(family.householdName)}</div>` : ""}
         </div>
       `;
 
@@ -636,10 +650,10 @@ export function MapContainer({
     if (visitMode && geolocationRef.current) {
       // 立即定位一次
       geolocationRef.current.getCurrentPosition();
-      // 每10秒定位一次
+      // 周期性定位检测是否到达住户附近
       visitWatchRef.current = setInterval(() => {
         geolocationRef.current?.getCurrentPosition();
-      }, 10000);
+      }, GEOLOCATION_INTERVAL);
     }
     return () => {
       if (visitWatchRef.current) {

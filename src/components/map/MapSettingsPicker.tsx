@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM } from "@/lib/amap";
+import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap } from "@/lib/amap";
 import { useToast } from "@/components/ui/Toast";
 import { LocateFixed, Save, MapPin, RotateCcw } from "lucide-react";
 
@@ -38,71 +38,59 @@ export function MapSettingsPicker() {
 
     let cancelled = false;
 
-    import("@amap/amap-jsapi-loader").then((AMapLoader) => {
-      window._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-      };
+    initAMap(["AMap.Geocoder", "AMap.Geolocation"])
+      .then((AMap: any) => {
+        if (cancelled) return;
 
-      AMapLoader.default
-        .load({
-          key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-          version: "2.0",
-          plugins: ["AMap.Geocoder", "AMap.Geolocation"],
-        })
-        .then((AMap: any) => {
-          if (cancelled) return;
-          AMap.getConfig().appname = "amap-jsapi-skill";
-
-          const map = new AMap.Map(containerRef.current, {
-            viewMode: "2D",
-            zoom: settings.zoom,
-            center: settings.center,
-            mapStyle: "amap://styles/whitesmoke",
-          });
-
-          geocoderRef.current = new AMap.Geocoder({ extensions: "all" });
-
-          // 初始标记
-          markerRef.current = new AMap.Marker({
-            position: settings.center,
-            content: `<div style="position:relative;width:36px;height:36px;">
-              <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:#e74c3c;border:4px solid white;box-shadow:0 0 0 3px rgba(231,76,60,.2),0 3px 8px rgba(0,0,0,.25);"></div>
-            </div>`,
-            offset: new AMap.Pixel(-18, -18),
-            draggable: true,
-            cursor: "move",
-          });
-          markerRef.current.setMap(map);
-
-          // 拖动标记结束后更新坐标
-          markerRef.current.on("dragging", () => {
-            const pos = markerRef.current.getPosition();
-            setCenter([pos.getLng(), pos.getLat()]);
-          });
-          markerRef.current.on("dragend", () => {
-            const pos = markerRef.current.getPosition();
-            reverseGeocode(pos.getLng(), pos.getLat());
-          });
-
-          // 点击地图移动标记
-          map.on("click", (e: any) => {
-            const lng = e.lnglat.getLng();
-            const lat = e.lnglat.getLat();
-            markerRef.current.setPosition([lng, lat]);
-            setCenter([lng, lat]);
-            reverseGeocode(lng, lat);
-          });
-
-          mapRef.current = map;
-          setMapReady(true);
-
-          // 初始逆地理编码
-          reverseGeocode(settings.center[0], settings.center[1]);
-        })
-        .catch((e: Error) => {
-          console.error("地图加载失败", e);
+        const map = new AMap.Map(containerRef.current, {
+          viewMode: "2D",
+          zoom: settings.zoom,
+          center: settings.center,
+          mapStyle: "amap://styles/whitesmoke",
         });
-    });
+
+        geocoderRef.current = new AMap.Geocoder({ extensions: "all" });
+
+        // 初始标记
+        markerRef.current = new AMap.Marker({
+          position: settings.center,
+          content: `<div style="position:relative;width:36px;height:36px;">
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:#e74c3c;border:4px solid white;box-shadow:0 0 0 3px rgba(231,76,60,.2),0 3px 8px rgba(0,0,0,.25);"></div>
+          </div>`,
+          offset: new AMap.Pixel(-18, -18),
+          draggable: true,
+          cursor: "move",
+        });
+        markerRef.current.setMap(map);
+
+        // 拖动标记结束后更新坐标
+        markerRef.current.on("dragging", () => {
+          const pos = markerRef.current.getPosition();
+          setCenter([pos.getLng(), pos.getLat()]);
+        });
+        markerRef.current.on("dragend", () => {
+          const pos = markerRef.current.getPosition();
+          reverseGeocode(pos.getLng(), pos.getLat());
+        });
+
+        // 点击地图移动标记
+        map.on("click", (e: any) => {
+          const lng = e.lnglat.getLng();
+          const lat = e.lnglat.getLat();
+          markerRef.current.setPosition([lng, lat]);
+          setCenter([lng, lat]);
+          reverseGeocode(lng, lat);
+        });
+
+        mapRef.current = map;
+        setMapReady(true);
+
+        // 初始逆地理编码
+        reverseGeocode(settings.center[0], settings.center[1]);
+      })
+      .catch((e: Error) => {
+        console.error("地图加载失败", e);
+      });
 
     function reverseGeocode(lng: number, lat: number) {
       if (!geocoderRef.current) return;

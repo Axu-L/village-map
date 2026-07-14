@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { useState, createContext, useContext, useCallback, useRef } from "react";
 
 type ToastItem = { id: number; message: string; type: "success" | "error" };
 
@@ -14,10 +14,10 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  let counter = 0;
+  const counterRef = useRef(0);
 
   const toast = useCallback((message: string, type: "success" | "error" = "success") => {
-    const id = Date.now() + counter++;
+    const id = Date.now() + counterRef.current++;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="toast-container">
+      <div className="toast-container" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`toast-item toast-${t.type}`}>
             {t.type === "success" ? "✓" : "✕"} {t.message}
