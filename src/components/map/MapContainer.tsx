@@ -65,6 +65,11 @@ export function MapContainer({
   const routePlannerRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geolocationRef = useRef<any>(null);
+  // 位置搜索：PlaceSearch 实例和临时标记
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const placeSearchRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tempMarkerRef = useRef<any>(null);
   // 卫星图层和路网图层引用（用于地图类型切换）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const satelliteLayerRef = useRef<any>(null);
@@ -108,6 +113,7 @@ export function MapContainer({
           "AMap.Driving",
           "AMap.Walking",
           "AMap.Riding",
+          "AMap.PlaceSearch",
         ],
       })
         .then((AMap: any) => {
@@ -147,6 +153,13 @@ export function MapContainer({
           // 初始化逆地理编码
           geocoderRef.current = new AMap.Geocoder({
             extensions: "all",
+          });
+
+          // 初始化位置搜索（用于搜索框的地名查找）
+          placeSearchRef.current = new AMap.PlaceSearch({
+            pageSize: 1,
+            pageIndex: 1,
+            extensions: "base",
           });
 
           // 定位控件（隐藏默认按钮，我们用自定义按钮触发）
@@ -249,6 +262,12 @@ export function MapContainer({
             const lng = e.lnglat.getLng();
             const lat = e.lnglat.getLat();
 
+            // 点击地图时清除位置搜索的临时标记
+            if (tempMarkerRef.current) {
+              tempMarkerRef.current.setMap(null);
+              tempMarkerRef.current = null;
+            }
+
             if (onMapClickRef.current) {
               onMapClickRef.current(lng, lat);
             }
@@ -274,6 +293,10 @@ export function MapContainer({
     });
 
     return () => {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null);
+        tempMarkerRef.current = null;
+      }
       if (mapRef.current) {
         mapRef.current.destroy();
         mapRef.current = null;
@@ -291,6 +314,63 @@ export function MapContainer({
     };
     window.addEventListener("map-settings-changed", handler);
     return () => window.removeEventListener("map-settings-changed", handler);
+  }, []);
+
+  // 监听位置搜索事件：来自 Topbar 搜索框的地点选择
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        name: string;
+        adcode?: string;
+      };
+      if (!mapRef.current || !AMapInstance || !placeSearchRef.current) return;
+      const AMap = AMapInstance;
+      const map = mapRef.current;
+      const placeSearch = placeSearchRef.current;
+
+      // 限定搜索城市（如果有 adcode）
+      if (detail.adcode) {
+        placeSearch.setCity(detail.adcode);
+        placeSearch.setCityLimit(true);
+      } else {
+        placeSearch.setCityLimit(false);
+      }
+
+      placeSearch.search(detail.name, (status: string, result: any) => {
+        if (status !== "complete" || !result?.poiList?.pois?.length) return;
+        const poi = result.poiList.pois[0];
+        if (!poi.location) return;
+        const lng = poi.location.getLng();
+        const lat = poi.location.getLat();
+
+        // 清除旧的临时标记
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.setMap(null);
+          tempMarkerRef.current = null;
+        }
+
+        // 飞行到目标位置
+        map.setZoomAndCenter(16, [lng, lat], true);
+
+        // 添加临时位置标记
+        const marker = new AMap.Marker({
+          position: [lng, lat],
+          content: `
+            <div style="position:relative;display:grid;place-items:center;width:44px;height:44px;pointer-events:none;">
+              <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:rgba(47,128,237,.18);animation:ping 1.8s infinite;"></div>
+              <div style="position:relative;z-index:2;display:grid;place-items:center;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#2f80ed;border:3px solid white;box-shadow:0 4px 12px rgba(47,128,237,.45);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white" style="transform:rotate(45deg);"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+              </div>
+            </div>
+          `,
+          offset: new AMap.Pixel(-22, -42),
+        });
+        marker.setMap(map);
+        tempMarkerRef.current = marker;
+      });
+    };
+    window.addEventListener("map-locate", handler);
+    return () => window.removeEventListener("map-locate", handler);
   }, []);
 
   // 更新住户标记
