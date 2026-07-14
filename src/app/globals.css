@@ -2583,7 +2583,7 @@ select:focus-visible {
   .mobile-nav {
     display: flex;
     position: fixed;
-    z-index: 50;
+    z-index: 1000;
     bottom: 0;
     left: 0;
     right: 0;
@@ -2624,9 +2624,10 @@ select:focus-visible {
     display: none;
   }
 
-  /* 高德地图 logo / 版权上移，避开底部 tab 栏 */
+  /* 高德地图 logo / 版权保持在地图底部，由高 z-index 的 tab 栏遮挡 */
   .amap-logo,
   .amap-copyright {
-    bottom: 70px !important;
+    bottom: 0 !important;
+    z-index: 1 !important;
   }
 }
