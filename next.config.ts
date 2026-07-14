@@ -21,6 +21,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // 允许预览沙箱域名访问开发资源（HMR / 客户端 JS），避免跨域阻塞导致页面无法水合
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "localhost",
+    "*.agent-sandbox-bj-d3-gw.trae.cn",
+    "*.trae.cn",
+  ],
 };
 
 export default nextConfig;
