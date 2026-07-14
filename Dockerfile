@@ -11,19 +11,20 @@ WORKDIR /app
 
 RUN npm config set registry https://registry.npmmirror.com
 
+# ========== 生产环境变量（必须在 npm run build 之前设置） ==========
+# jwt.ts 在模块加载时校验 JWT_SECRET，构建收集页面数据时会触发该校验
+# NEXT_PUBLIC_* 会在构建时内联到客户端代码
+ENV JWT_SECRET=90efaf41943e9e56424103ce1ed5fb0b59ea15fe9b2deb385c22e19a5b8d5f0b
+ENV NEXT_PUBLIC_AMAP_KEY=0725c389055177586ede0637887fcde2
+ENV NEXT_PUBLIC_AMAP_SECRET=31b32c8992a245df88ff4a90aba5a1cf
+
 COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
 
-# ========== 生产环境变量 ==========
-# JWT 鉴权密钥（生产环境必需，否则 jwt.ts 启动校验会抛错）
-ENV JWT_SECRET=90efaf41943e9e56424103ce1ed5fb0b59ea15fe9b2deb385c22e19a5b8d5f0b
-# 高德地图密钥（前端 JSAPI 安全密钥，构建时注入到客户端代码）
-ENV NEXT_PUBLIC_AMAP_KEY=0725c389055177586ede0637887fcde2
-ENV NEXT_PUBLIC_AMAP_SECRET=31b32c8992a245df88ff4a90aba5a1cf
-# 运行端口
+# 运行端口与监听地址
 ENV PORT=3002
 ENV HOSTNAME=0.0.0.0
 
