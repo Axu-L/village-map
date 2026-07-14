@@ -41,6 +41,8 @@ function MapPageContent() {
   const [routeHouseholds, setRouteHouseholds] = useState<Household[]>([]);
   const [visitHousehold, setVisitHousehold] = useState<Household | null>(null);
   const [visitMode, setVisitMode] = useState(false);
+  // 位置搜索模式：搜索框输入地名时为 true，隐藏"未找到住户"提示
+  const [locationSearching, setLocationSearching] = useState(false);
 
   // 监听导航步骤事件
   useEffect(() => {
@@ -103,6 +105,16 @@ function MapPageContent() {
     };
     window.addEventListener("global-search", handler);
     return () => window.removeEventListener("global-search", handler);
+  }, []);
+
+  // 监听搜索模式变化：位置搜索时不显示"未找到住户"提示
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent).detail as string;
+      setLocationSearching(mode === "location");
+    };
+    window.addEventListener("search-mode", handler);
+    return () => window.removeEventListener("search-mode", handler);
   }, []);
 
   // 筛选逻辑
@@ -245,8 +257,10 @@ function MapPageContent() {
           searchKey={search}
         />
 
-        {/* 搜索无结果提示 */}
-        {(search || filterTags.length > 0) && filtered.length === 0 && (
+        {/* 搜索无结果提示（位置搜索模式下不显示） */}
+        {(search || filterTags.length > 0) &&
+          filtered.length === 0 &&
+          !locationSearching && (
           <div className="search-empty-overlay">
             <div className="search-empty-card">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5">

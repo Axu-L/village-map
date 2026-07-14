@@ -206,6 +206,8 @@ select:focus-visible {
   margin-left: 236px;
 }
 .topbar {
+  position: relative;
+  z-index: 30;
   height: 72px;
   display: flex;
   align-items: center;
@@ -262,11 +264,11 @@ select:focus-visible {
   margin: 0;
   padding: 4px;
   list-style: none;
-  background: white;
+  background: #fff;
   border: 1px solid #e4eaf2;
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(31, 55, 88, 0.12);
-  z-index: 200;
+  box-shadow: 0 12px 32px rgba(31, 55, 88, 0.18);
+  z-index: 999;
   max-height: 320px;
   overflow-y: auto;
 }
@@ -2415,7 +2417,7 @@ select:focus-visible {
   }
   .topbar {
     position: sticky;
-    z-index: 20;
+    z-index: 50;
     top: 0;
     height: 60px;
     gap: 10px;

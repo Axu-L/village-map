@@ -70,9 +70,18 @@ export function Topbar() {
                 }));
               setTips(valid);
               setShowTips(valid.length > 0);
+              // 有位置建议时进入位置搜索模式，地图页据此隐藏"未找到住户"提示
+              window.dispatchEvent(
+                new CustomEvent("search-mode", {
+                  detail: valid.length > 0 ? "location" : "household",
+                })
+              );
             } else {
               setTips([]);
               setShowTips(false);
+              window.dispatchEvent(
+                new CustomEvent("search-mode", { detail: "household" })
+              );
             }
           });
         })
@@ -80,12 +89,20 @@ export function Topbar() {
     } else {
       setTips([]);
       setShowTips(false);
+      window.dispatchEvent(
+        new CustomEvent("search-mode", { detail: "household" })
+      );
     }
   };
 
   const handleSelectTip = (tip: LocationTip) => {
     setKeyword(tip.name);
     setShowTips(false);
+    // 选中位置后清空住户筛选，避免残留"未找到住户"提示
+    emitGlobalSearch("");
+    window.dispatchEvent(
+      new CustomEvent("search-mode", { detail: "household" })
+    );
     // 派发定位事件，MapContainer 监听后调用 PlaceSearch 定位并打标记
     window.dispatchEvent(new CustomEvent("map-locate", { detail: tip }));
   };
