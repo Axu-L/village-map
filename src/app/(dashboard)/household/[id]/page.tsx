@@ -5,7 +5,9 @@ import type { Household, Member, Visit } from "@/types";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { maskPhone } from "@/lib/utils";
 import { allTags, getTagColor } from "@/lib/tags";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, assetUrl } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import { HouseholdForm } from "@/components/household/HouseholdForm";
 import {
   ArrowLeft,
   Navigation,
@@ -16,6 +18,8 @@ import {
   Home,
   Calendar,
   X,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -29,6 +33,7 @@ export default function HouseholdDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { toast } = useToast();
 
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -36,6 +41,27 @@ export default function HouseholdDetailPage({
   const [activeTab, setActiveTab] = useState<TabKey>("基本信息");
   const [loading, setLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [showEditHousehold, setShowEditHousehold] = useState(false);
+  const [editPickPosition, setEditPickPosition] = useState<{
+    lng: number;
+    lat: number;
+  } | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // 读取 ?edit=1 参数，进入编辑模式
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("edit") === "1" && household) {
+      const lng = Number(household.longitude);
+      const lat = Number(household.latitude);
+      setEditPickPosition(
+        isNaN(lng) || isNaN(lat) ? null : { lng, lat }
+      );
+      setShowEditHousehold(true);
+    }
+  }, [household]);
 
   useEffect(() => {
     async function fetchData() {
@@ -64,6 +90,58 @@ export default function HouseholdDetailPage({
     fetchData();
   }, [id]);
 
+  // 保存编辑住户
+  const handleSaveEditHousehold = async (data: Record<string, unknown>) => {
+    try {
+      const res = await fetch(apiUrl(`/api/households/${id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setHousehold(updated);
+        setShowEditHousehold(false);
+        setEditPickPosition(null);
+        toast("住户信息已更新", "success");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.message || "保存失败", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      toast("网络错误，保存失败", "error");
+    }
+  };
+
+  // 删除成员
+  const handleDeleteMember = async (memberId: number) => {
+    if (!confirm("确定要删除该成员吗？")) return;
+    try {
+      const res = await fetch(apiUrl(`/api/members/${memberId}`), {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMembers((prev) => prev.filter((m) => m.id !== memberId));
+        toast("成员已删除", "success");
+      } else {
+        toast("删除失败", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      toast("网络错误，删除失败", "error");
+    }
+  };
+
+  // 聚合所有走访图片
+  const allVisitImages: { url: string; visitDate: string }[] = [];
+  for (const v of visits) {
+    const imgs = Array.isArray(v.images) ? v.images : [];
+    for (const img of imgs) {
+      allVisitImages.push({ url: assetUrl(img), visitDate: v.visitDate });
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "#8a95a8" }}>
@@ -82,23 +160,90 @@ export default function HouseholdDetailPage({
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 720, margin: "0 auto" }}>
-      {/* Back button */}
-      <Link
-        href="/map"
+      {/* Back button + actions */}
+      <div
         style={{
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          gap: 6,
-          color: "#2f80ed",
-          fontSize: 13,
-          fontWeight: 600,
-          textDecoration: "none",
+          justifyContent: "space-between",
           marginBottom: 16,
         }}
       >
-        <ArrowLeft size={15} />
-        返回地图
-      </Link>
+        <Link
+          href="/map"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: "#2f80ed",
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          <ArrowLeft size={15} />
+          返回地图
+        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => {
+              const lng = Number(household.longitude);
+              const lat = Number(household.latitude);
+              if (isNaN(lng) || isNaN(lat) || (lng === 0 && lat === 0)) {
+                toast("该住户未设置位置信息", "error");
+                return;
+              }
+              const name = encodeURIComponent(household.householdName);
+              window.open(
+                `https://uri.amap.com/navigation?to=${lng},${lat},${name}`,
+                "_blank"
+              );
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "6px 14px",
+              border: "1px solid #e4e8ef",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#2f80ed",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <Navigation size={13} />
+            导航
+          </button>
+          <button
+            onClick={() => {
+              const lng = Number(household.longitude);
+              const lat = Number(household.latitude);
+              setEditPickPosition(
+                isNaN(lng) || isNaN(lat) ? null : { lng, lat }
+              );
+              setShowEditHousehold(true);
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "6px 14px",
+              border: "none",
+              borderRadius: 8,
+              background: "linear-gradient(135deg, #27ae60, #2f80ed)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <Pencil size={13} />
+            编辑
+          </button>
+        </div>
+      </div>
 
       {/* Hero section */}
       <div
@@ -305,10 +450,50 @@ export default function HouseholdDetailPage({
                       {m.age != null ? ` · ${m.age}岁` : ""}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {m.tags.map((tag) => (
-                      <TagBadge key={tag} tag={tag} />
-                    ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {m.tags.map((tag) => (
+                        <TagBadge key={tag} tag={tag} />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setEditingMember(m)}
+                      title="编辑"
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: "50%",
+                        border: "none",
+                        background: "rgba(47,128,237,0.08)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 0,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Pencil size={12} color="#2f80ed" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMember(m.id)}
+                      title="删除"
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: "50%",
+                        border: "none",
+                        background: "rgba(235,87,87,0.08)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 0,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Trash2 size={12} color="#eb5757" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -442,31 +627,137 @@ export default function HouseholdDetailPage({
       )}
 
       {activeTab === "图片" && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 10,
-          }}
-        >
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div>
+          {allVisitImages.length === 0 ? (
             <div
-              key={i}
               style={{
-                aspectRatio: "1",
-                borderRadius: 10,
-                background: "#f0f3f7",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                background: "#fff",
+                borderRadius: 14,
+                padding: "40px 24px",
+                textAlign: "center",
                 color: "#8a95a8",
-                fontSize: 12,
+                fontSize: 13,
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
               }}
             >
               暂无图片
             </div>
-          ))}
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 10,
+              }}
+            >
+              {allVisitImages.map((img, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    aspectRatio: "1",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                    position: "relative",
+                  }}
+                  onClick={() => setPreviewImage(img.url)}
+                >
+                  <img
+                    src={img.url}
+                    alt={`走访图片 ${idx + 1}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      bottom: 4,
+                      left: 4,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: "rgba(0,0,0,0.5)",
+                      color: "#fff",
+                      fontSize: 10,
+                    }}
+                  >
+                    {img.visitDate}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {/* 图片预览 Lightbox */}
+      {previewImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            cursor: "zoom-out",
+          }}
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={previewImage}
+            alt="预览"
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              borderRadius: 8,
+              objectFit: "contain",
+            }}
+          />
+          <button
+            style={{
+              position: "absolute",
+              top: 20,
+              right: 20,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(255,255,255,0.2)",
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
+
+      {/* 编辑住户表单 */}
+      {showEditHousehold && household && (
+        <HouseholdForm
+          pickPosition={editPickPosition}
+          onMapClick={(lng, lat) => setEditPickPosition({ lng, lat })}
+          onSave={handleSaveEditHousehold}
+          onClose={() => {
+            setShowEditHousehold(false);
+            setEditPickPosition(null);
+            // 清除 URL 中的 edit 参数
+            if (typeof window !== "undefined") {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("edit");
+              window.history.replaceState({}, "", url.toString());
+            }
+          }}
+          initialData={household}
+        />
       )}
 
       {/* Add Member Modal */}
@@ -477,6 +768,22 @@ export default function HouseholdDetailPage({
           onSuccess={() => {
             setShowAddMember(false);
             // Refresh members list
+            fetch(apiUrl(`/api/members?householdId=${id}`))
+              .then((res) => res.json())
+              .then((data) => setMembers(Array.isArray(data) ? data : []))
+              .catch(() => {});
+          }}
+        />
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <AddMemberModal
+          householdId={Number(id)}
+          initialData={editingMember}
+          onClose={() => setEditingMember(null)}
+          onSuccess={() => {
+            setEditingMember(null);
             fetch(apiUrl(`/api/members?householdId=${id}`))
               .then((res) => res.json())
               .then((data) => setMembers(Array.isArray(data) ? data : []))
@@ -525,16 +832,24 @@ function AddMemberModal({
   householdId,
   onClose,
   onSuccess,
+  initialData,
 }: {
   householdId: number;
   onClose: () => void;
   onSuccess: () => void;
+  initialData?: Member;
 }) {
-  const [name, setName] = useState("");
-  const [relation, setRelation] = useState("其他");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("男");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const { toast } = useToast();
+  const isEdit = !!initialData;
+  const [name, setName] = useState(initialData?.name || "");
+  const [relation, setRelation] = useState(initialData?.relation || "其他");
+  const [age, setAge] = useState(
+    initialData?.age != null ? String(initialData.age) : ""
+  );
+  const [gender, setGender] = useState(initialData?.gender || "男");
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    initialData?.tags || []
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const toggleTag = (tag: string) => {
@@ -546,29 +861,35 @@ function AddMemberModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert("请输入姓名");
+      toast("请输入姓名", "error");
       return;
     }
     setSubmitting(true);
     try {
-      const res = await fetch(apiUrl("/api/members"), {
-        method: "POST",
+      const payload = {
+        householdId,
+        name: name.trim(),
+        relation,
+        age: age ? Number(age) : null,
+        gender,
+        tags: selectedTags,
+      };
+      const url = isEdit
+        ? apiUrl(`/api/members/${initialData!.id}`)
+        : apiUrl("/api/members");
+      const method = isEdit ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          householdId,
-          name: name.trim(),
-          relation,
-          age: age ? Number(age) : null,
-          gender,
-          tags: selectedTags,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        throw new Error("添加失败");
+        throw new Error(isEdit ? "更新失败" : "添加失败");
       }
+      toast(isEdit ? "成员已更新" : "成员已添加", "success");
       onSuccess();
     } catch {
-      alert("添加成员失败，请重试");
+      toast(isEdit ? "更新成员失败，请重试" : "添加成员失败，请重试", "error");
     } finally {
       setSubmitting(false);
     }
@@ -616,7 +937,7 @@ function AddMemberModal({
               margin: 0,
             }}
           >
-            添加成员
+            {isEdit ? "编辑成员" : "添加成员"}
           </h2>
           <button
             onClick={onClose}
@@ -852,7 +1173,7 @@ function AddMemberModal({
                 opacity: submitting ? 0.7 : 1,
               }}
             >
-              {submitting ? "提交中..." : "确认添加"}
+              {submitting ? "提交中..." : isEdit ? "确认修改" : "确认添加"}
             </button>
           </div>
         </form>

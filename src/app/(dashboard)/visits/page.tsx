@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Calendar, Clock, ChevronDown, MapPin, User, Image as ImageIcon } from "lucide-react";
 import type { Household, Visit } from "@/types";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, assetUrl } from "@/lib/api";
 
 export default function VisitsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -380,6 +380,50 @@ export default function VisitsPage() {
                                       <ImageIcon size={10} />
                                       {images.length}张图
                                     </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 图片缩略图 */}
+                              {images.length > 0 && (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: 6,
+                                    marginTop: 8,
+                                  }}
+                                >
+                                  {images.slice(0, 3).map((img, idx) => (
+                                    <img
+                                      key={idx}
+                                      src={assetUrl(img)}
+                                      alt={`走访图片 ${idx + 1}`}
+                                      style={{
+                                        width: 56,
+                                        height: 56,
+                                        borderRadius: 8,
+                                        objectFit: "cover",
+                                        border: "1px solid #e4e8ef",
+                                      }}
+                                    />
+                                  ))}
+                                  {images.length > 3 && (
+                                    <div
+                                      style={{
+                                        width: 56,
+                                        height: 56,
+                                        borderRadius: 8,
+                                        background: "#f0f3f7",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 11,
+                                        color: "#8a95a8",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      +{images.length - 3}
+                                    </div>
                                   )}
                                 </div>
                               )}

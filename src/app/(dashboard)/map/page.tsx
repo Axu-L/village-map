@@ -7,6 +7,7 @@ import type { RoutePlanParams } from "@/components/map/MapContainer";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { VisitForm } from "@/components/visit/VisitForm";
 import { RoutePlan } from "@/components/map/RoutePlan";
+import { useToast } from "@/components/ui/Toast";
 import type { Household, Visit } from "@/types";
 import { apiUrl, assetUrl } from "@/lib/api";
 import { useState, useEffect, useCallback, Suspense } from "react";
@@ -14,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 
 function MapPageContent() {
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   const [households, setHouseholds] = useState<Household[]>([]);
   const [selected, setSelected] = useState<Household | null>(null);
@@ -139,16 +141,17 @@ function MapPageContent() {
         setShowAdd(false);
         setPickingMode(false);
         setPickPosition(null);
+        toast("住户已添加", "success");
       } else if (res.status === 409) {
         const err = await res.json();
-        alert(err.message || "该住户已存在");
+        toast(err.message || "该住户已存在", "error");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || "保存失败");
+        toast(err.message || "保存失败", "error");
       }
     } catch (err) {
       console.error("保存失败", err);
-      alert("网络错误，保存失败");
+      toast("网络错误，保存失败", "error");
     }
   };
 
@@ -161,18 +164,28 @@ function MapPageContent() {
       });
       if (res.ok) {
         setShowVisit(false);
+        setVisitHousehold(null);
+        toast("走访记录已保存", "success");
         fetch(apiUrl("/api/households"))
           .then((r) => r.json())
           .then(setHouseholds);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.message || "保存走访失败", "error");
       }
     } catch (err) {
       console.error("保存走访失败", err);
+      toast("网络错误，保存走访失败", "error");
     }
   };
 
   const handleNavigate = (family: Household) => {
-    const lng = family.longitude;
-    const lat = family.latitude;
+    const lng = Number(family.longitude);
+    const lat = Number(family.latitude);
+    if (isNaN(lng) || isNaN(lat) || (lng === 0 && lat === 0)) {
+      toast("该住户未设置位置信息", "error");
+      return;
+    }
     const name = encodeURIComponent(family.householdName);
     window.open(
       `https://uri.amap.com/navigation?to=${lng},${lat},${name}`,

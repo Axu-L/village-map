@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Household } from "@/types";
+import type { Household, Visit } from "@/types";
 import { getTagColor } from "@/lib/tags";
 import { apiUrl } from "@/lib/api";
 import { BarChart3, Users, AlertTriangle, Heart } from "lucide-react";
@@ -13,14 +13,20 @@ const groupNames = [
 
 export default function StatisticsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
+  const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const hRes = await fetch(apiUrl("/api/households"));
+        const [hRes, vRes] = await Promise.all([
+          fetch(apiUrl("/api/households")),
+          fetch(apiUrl("/api/visits")),
+        ]);
         const hData = await hRes.json();
+        const vData = await vRes.json();
         setHouseholds(Array.isArray(hData) ? hData : []);
+        setVisits(Array.isArray(vData) ? vData : []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -75,24 +81,19 @@ export default function StatisticsPage() {
     .map((s) => `${s.color} ${s.start}deg ${s.end}deg`)
     .join(", ");
 
-  // Trend: last 6 months based on households' lastVisitAt
+  // Trend: last 6 months based on actual visits (visitDate)
   const now = new Date();
   const months: { label: string; count: number }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const label = `${d.getMonth() + 1}月`;
     const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const count = households.filter(
-      (h) => h.lastVisitAt && h.lastVisitAt.startsWith(yearMonth)
+    const count = visits.filter(
+      (v) => v.visitDate && v.visitDate.startsWith(yearMonth)
     ).length;
     months.push({ label, count });
   }
   const hasVisitData = months.some((m) => m.count > 0);
-  if (!hasVisitData) {
-    months.forEach((m) => {
-      m.count = Math.floor(Math.random() * 8) + 2;
-    });
-  }
   const maxMonthCount = Math.max(...months.map((m) => m.count), 1);
 
   return (
@@ -289,6 +290,20 @@ export default function StatisticsPage() {
             走访趋势（近6月）
           </div>
 
+          {!hasVisitData ? (
+            <div
+              style={{
+                height: 160,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#8a95a8",
+                fontSize: 13,
+              }}
+            >
+              暂无走访数据
+            </div>
+          ) : (
           <div
             style={{
               display: "flex",
@@ -327,6 +342,7 @@ export default function StatisticsPage() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

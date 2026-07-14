@@ -73,16 +73,6 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
         setCurrentAddress("花园村（默认位置）");
       });
     });
-
-    // 监听朝向变化
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      const heading = e.alpha;
-      if (heading !== null) {
-        (window as any).__deviceHeading = heading;
-      }
-    };
-    window.addEventListener("deviceorientation", handleOrientation);
-    return () => window.removeEventListener("deviceorientation", handleOrientation);
   }, []);
 
   const toggleHousehold = (id: number) => {

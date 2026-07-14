@@ -7,10 +7,12 @@ import { TagBadge } from "@/components/ui/TagBadge";
 import { allTags, getTagColor } from "@/lib/tags";
 import { maskPhone } from "@/lib/utils";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
+import { useToast } from "@/components/ui/Toast";
 import type { Household } from "@/types";
 import { apiUrl } from "@/lib/api";
 
 export default function PeoplePage() {
+  const { toast } = useToast();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -45,12 +47,13 @@ export default function PeoplePage() {
       const res = await fetch(apiUrl(`/api/households/${id}`), { method: "DELETE" });
       if (res.ok) {
         setHouseholds((prev) => prev.filter((h) => h.id !== id));
+        toast("住户已删除", "success");
       } else {
-        alert("删除失败");
+        toast("删除失败", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("网络错误，删除失败");
+      toast("网络错误，删除失败", "error");
     }
   };
 
@@ -87,13 +90,14 @@ export default function PeoplePage() {
         );
         setEditing(null);
         setEditPickPosition(null);
+        toast("住户信息已更新", "success");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || "保存失败");
+        toast(err.message || "保存失败", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("网络错误，保存失败");
+      toast("网络错误，保存失败", "error");
     }
   };
 

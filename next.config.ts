@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
+  // 明确指定 Turbopack 根目录，避免 workspace 推断失败
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;

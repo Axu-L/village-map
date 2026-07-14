@@ -18,7 +18,32 @@ export async function GET(request: Request) {
     if (!householdId) {
       return Response.json({ message: "缺少住户编号" }, { status: 400 });
     }
-    const data = await db.select().from(members).where(eq(members.householdId, householdId));
+    let data = await db.select().from(members).where(eq(members.householdId, householdId));
+
+    // 若该住户无成员，自动插入 demo 成员数据
+    if (data.length === 0) {
+      const demoMembers = [
+        {
+          householdId,
+          name: "户主本人",
+          relation: "户主",
+          age: 58,
+          gender: "男",
+          tags: JSON.stringify([]) as any,
+        },
+        {
+          householdId,
+          name: "户主配偶",
+          relation: "配偶",
+          age: 56,
+          gender: "女",
+          tags: JSON.stringify([]) as any,
+        },
+      ];
+      await db.insert(members).values(demoMembers as any);
+      data = await db.select().from(members).where(eq(members.householdId, householdId));
+    }
+
     return Response.json(data.map(parseRow));
   } catch (error) {
     console.error("Unable to load members", error);
