@@ -2696,10 +2696,13 @@ select:focus-visible {
     display: none;
   }
 
-  /* 高德地图 logo / 版权保持在地图底部，由高 z-index 的 tab 栏遮挡 */
+  /* 高德地图 logo / 版权 / 比例尺等控件上移，避免被底部 tab 栏（62px）遮挡 */
   .amap-logo,
   .amap-copyright {
-    bottom: 0 !important;
+    bottom: 62px !important;
     z-index: 1 !important;
+  }
+  .amap-scalecontrol {
+    bottom: 62px !important;
   }
 }
