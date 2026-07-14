@@ -8,22 +8,12 @@ const PUBLIC_PATHS = ["/api/auth", "/api/health"];
 const PROTECTED_PREFIXES = ["/api/households", "/api/members", "/api/visits", "/api/upload"];
 
 export async function middleware(request: NextRequest) {
-  const { pathname, origin } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  // 上传照片：同源 Referer 校验，防止外站直接引用（UUID 不可枚举 + noindex 已兜底）
-  // 仅当 Referer 存在且明确跨域时才拦截；无 Referer（隐私浏览器/直接访问）放行
+  // 上传照片：UUID 不可枚举 + noindex 已兜底，无需 Referer 校验
+  // （nginx 反代场景下 request 中的 origin 是内部容器地址，与浏览器 Referer 必然不一致，
+  //  同源校验会误伤所有合法图片请求，因此移除该校验）
   if (pathname.startsWith("/uploads/")) {
-    const referer = request.headers.get("referer");
-    if (referer) {
-      try {
-        const refererOrigin = new URL(referer).origin;
-        if (refererOrigin !== origin) {
-          return new NextResponse("Forbidden", { status: 403 });
-        }
-      } catch {
-        // Referer 解析失败，放行（不因畸形 header 阻断合法访问）
-      }
-    }
     return NextResponse.next();
   }
 
