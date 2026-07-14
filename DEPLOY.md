@@ -59,13 +59,18 @@ tar -xzf village-map.tar.gz -C village-map
 cd village-map
 
 # 2. 首次部署：创建上传目录（已存在则跳过）
-mkdir -p public/uploads
+mkdir -p uploads
 
 # 3. 给部署脚本执行权限
 chmod +x deploy.sh
 
 # 4. 一键部署
 ./deploy.sh
+
+# 5. 更新 nginx 配置并重载（首次部署或 nginx.conf 有变更时）
+cp nginx.conf /usr/local/nginx/conf/nginx.conf
+nginx -t          # 测试配置语法
+nginx -s reload   # 重载生效
 ```
 
 `deploy.sh` 会自动完成：
@@ -74,7 +79,18 @@ chmod +x deploy.sh
 - 启动新容器（端口 3002，自动重启）
 - 挂载数据卷：
   - `data/` → 容器 `/app/.next/standalone/data`（SQLite 数据库）
-  - `public/uploads/` → 容器 `/app/.next/standalone/public/uploads`（上传图片）
+  - `uploads/` → 容器 `/app/.next/standalone/public/uploads`（上传图片）
+
+### 上传图片说明
+
+**重要：** `tar.gz` 包不含 `public/uploads/` 下的图片（属于用户数据，与代码分离）。
+
+- **首次部署**：若需迁移已有图片，在开发机单独 scp 上传：
+  ```bash
+  scp -r public/uploads/* root@服务器IP:/usr/local/nginx/html/village-map/uploads/
+  ```
+- **nginx 直接服务图片**：`nginx.conf` 中 `/village-map/uploads/` 的 location 用 `alias` 直接读取宿主机 `/usr/local/nginx/html/village-map/uploads/` 下的文件，不经过 Next.js 容器，避免反代场景下的 403 问题。
+- **新上传的图片**：通过走访表单上传，由容器写入挂载的 `uploads/` 目录，nginx 自动可读。
 
 ## 五、验证部署
 
