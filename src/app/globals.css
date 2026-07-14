@@ -2391,8 +2391,9 @@ select:focus-visible {
 
   /* Map page mobile */
   .map-page {
-    height: calc(100vh - 60px);
-    padding-bottom: 62px; /* 给底部 mobile-nav 留空间 */
+    /* 精确填满视口减去 topbar(60px) 和 tab栏(62px) */
+    height: calc(100vh - 60px - 62px);
+    /* 不再加 padding-bottom，避免总高度溢出产生空白 */
   }
   .map-toolbar {
     flex-wrap: wrap;
@@ -2435,10 +2436,13 @@ select:focus-visible {
     font-size: 12px;
   }
   .map-area {
-    /* 精确填满视口减去 topbar(60px) 和 tab栏(62px)，禁止滚动 */
-    height: calc(100vh - 60px - 62px);
-    min-height: 0;
+    /* flex 填满剩余空间，禁止 min-height 撑出空白 */
+    flex: 1;
+    min-height: 0 !important;
     overflow: hidden;
+  }
+  #amap-container {
+    min-height: 0 !important;
   }
   /* 路线信息浮层在手机端撑满宽度 */
   .route-info-overlay {
