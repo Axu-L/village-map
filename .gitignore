@@ -21,8 +21,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# deploy artifacts (zip only)
-village-map.zip
+# deploy artifacts (tar.gz only)
+village-map.tar.gz
 
 # environment variables (contains JWT_SECRET / AMAP keys)
 .env*
