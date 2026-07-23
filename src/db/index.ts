@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import path from "path";
 
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "app.db");
+const dbPath = path.join(process.cwd(), "data", "app.db");
 
 // 确保 data 目录存在
 import fs from "fs";
