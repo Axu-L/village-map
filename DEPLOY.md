@@ -93,12 +93,20 @@ docker logs -f village-map
 
 ### 5. 配置 nginx 反向代理
 
-在 `nginx.conf` 的 `server`（443 ssl）块中添加 `/village-map` 反向代理：
+在 `nginx.conf` 的 `server`（443 ssl）块中添加村智图配置（仓库 `nginx.conf` 已包含，参考用）：
 
 ```nginx
-# ========== 村智图（Docker 3002） ==========
-location /village-map/ {
-    proxy_pass http://127.0.0.1:3002/village-map/;
+# ========== 村智图（Next.js standalone 3002） ==========
+# 上传图片由 nginx 直接服务静态文件，不经过 Next.js 容器
+# （避免 middleware/standalone 静态服务在反代场景下的 403 问题）
+location /village-map/uploads/ {
+    alias /usr/local/nginx/html/village-map/uploads/;
+    expires 7d;
+    add_header Cache-Control "public, noindex";
+    add_header X-Robots-Tag "noindex, noarchive";
+}
+location ^~ /village-map {
+    proxy_pass http://127.0.0.1:3002;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -110,6 +118,10 @@ location /village-map/ {
     proxy_read_timeout 300s;
 }
 ```
+
+说明：
+- `location ^~ /village-map` 用 `^~` 前缀匹配，优先级高于正则，能同时覆盖 `/village-map`、`/village-map/`、`/village-map/login` 等所有子路径，无需再写一个 `/village-map/`。
+- 上传文件走 `alias` 直接由 nginx 读取磁盘，不经容器，避免 standalone 模式下静态资源 403。
 
 重载 nginx：
 
