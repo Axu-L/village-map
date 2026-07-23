@@ -1,111 +1,136 @@
-# 村智图 - 部署文档
+# 村智图 VillageMap 部署文档
 
-花园村重点人群数字化管理平台（VillageMap）部署指南。
+## 一、环境要求
 
-## 一、项目结构
+| 项 | 要求 |
+|----|------|
+| 操作系统 | Linux（ CentOS / Ubuntu / Debian 均可） |
+| Docker | 20.10+ |
+| Nginx | 已配置反向代理（见 `nginx.conf`） |
+| 端口 | 3002（容器内部，nginx 代理到 443） |
+| 访问地址 | `https://www.axuxtl.xyz/village-map` |
 
-```
-village-map/
-├── src/                    # 源码
-│   ├── app/                # Next.js App Router 页面与 API
-│   ├── components/          # React 组件
-│   ├── db/                  # 数据库（SQLite + Drizzle ORM）
-│   ├── lib/                 # 工具函数
-│   └── types/               # 类型定义
-├── public/                 # 静态资源
-├── Dockerfile              # Docker 构建文件
-├── deploy.sh               # 一键部署脚本
-├── .dockerignore           # Docker 构建忽略列表
-├── nginx.conf              # nginx 配置参考
-├── next.config.ts          # Next.js 配置（basePath=/village-map）
-├── package.json
-└── .env.local              # 环境变量
-```
+## 二、打包说明（开发机执行）
 
-## 二、打包
-
-本地打包为 `.tar.gz`（已排除 node_modules、.next、data、uploads、.git、.trae）：
+在项目根目录执行：
 
 ```bash
-tar -czf village-map-deploy.tar.gz \
+tar -czf village-map.tar.gz . \
   --exclude='node_modules' \
   --exclude='.next' \
-  --exclude='data' \
-  --exclude='public/uploads/*' \
-  --exclude='.git' \
   --exclude='.trae' \
-  --exclude='mobile-screenshots' \
-  --exclude='village-map-deploy.tar.gz' \
-  -C /workspace .
+  --exclude='.git' \
+  --exclude='village-map.tar.gz' \
+  --exclude='village-map*.zip' \
+  --exclude='.env.local' \
+  --exclude='public/uploads/*' \
+  --exclude='*.log' \
+  --exclude='tsconfig.tsbuildinfo'
 ```
 
-生成文件：`village-map-deploy.tar.gz`
+**包含内容：**
+- 源码：`src/`、`public/`、`scripts/`
+- 配置：`package.json`、`package-lock.json`、`next.config.ts`、`tsconfig.json`、`postcss.config.mjs`、`eslint.config.mjs`、`drizzle.config.json`
+- 部署：`Dockerfile`、`.dockerignore`、`deploy.sh`、`nginx.conf`
+- 数据：`data/app.db`（含 admin 用户 + 示例住户数据）
+- 环境模板：`.env.example`
 
-## 三、部署步骤
+**已排除：** `node_modules`、`.next`、`.env.local`（含密钥）、`uploads/*`、`.git`、`.trae`、`*.log`
 
-### 1. 上传 tar.gz 到服务器
+> **注意：** `data/app.db` 已包含在压缩包内，**无需单独上传数据库**。部署脚本会自动挂载到容器。
 
-本地终端：
+## 三、上传到服务器
+
+在开发机执行（替换 `你的服务器IP`）：
 
 ```bash
-scp village-map-deploy.tar.gz root@你的服务器IP:/usr/local/nginx/html/
+scp village-map.tar.gz root@你的服务器IP:/usr/local/nginx/html/
 ```
 
-### 2. 服务器上解压
+## 四、服务器部署
 
-SSH 登录服务器后：
+SSH 登录服务器后执行：
 
 ```bash
+# 1. 解压（-C 指定的目录必须先存在）
 cd /usr/local/nginx/html
-rm -rf village-map-old 2>/dev/null
-[ -d village-map ] && mv village-map village-map-old
 mkdir -p village-map
-tar -xzf village-map-deploy.tar.gz -C village-map
+tar -xzf village-map.tar.gz -C village-map
 cd village-map
-```
 
-> 保留 `village-map-old` 作为回滚备份。确认新版本正常后可删除。
+# 2. 首次部署：创建上传目录（已存在则跳过）
+mkdir -p uploads
 
-### 3. 一键部署
-
-```bash
+# 3. 给部署脚本执行权限
 chmod +x deploy.sh
+
+# 4. 一键部署
 ./deploy.sh
+
+# 5. 更新 nginx 配置并重载（首次部署或 nginx.conf 有变更时）
+cp nginx.conf /usr/local/nginx/conf/nginx.conf
+nginx -t          # 测试配置语法
+nginx -s reload   # 重载生效
 ```
 
 `deploy.sh` 会自动完成：
-1. 构建 Docker 镜像
-2. 删除旧容器
-3. 启动新容器（含数据持久化挂载）
-4. 端口映射：宿主机 3002 → 容器 3002
+- `docker build` 构建镜像（基于 `Dockerfile`，node:20-slim）
+- 删除旧容器
+- 启动新容器（端口 3002，自动重启）
+- 挂载数据卷：
+  - `data/` → 容器 `/app/.next/standalone/data`（SQLite 数据库）
+  - `uploads/` → 容器 `/app/.next/standalone/public/uploads`（上传图片）
 
-数据持久化挂载：
-- 数据库：`/usr/local/nginx/html/village-map/data` → `/app/.next/standalone/data`
-- 上传文件：`/usr/local/nginx/html/village-map/uploads` → `/app/.next/standalone/public/uploads`
+### 上传图片说明
 
-### 4. 验证启动
+**重要：** `tar.gz` 包不含 `public/uploads/` 下的图片（属于用户数据，与代码分离）。
+
+- **首次部署**：若需迁移已有图片，在开发机单独 scp 上传：
+  ```bash
+  scp -r public/uploads/* root@服务器IP:/usr/local/nginx/html/village-map/uploads/
+  ```
+- **nginx 直接服务图片**：`nginx.conf` 中 `/village-map/uploads/` 的 location 用 `alias` 直接读取宿主机 `/usr/local/nginx/html/village-map/uploads/` 下的文件，不经过 Next.js 容器，避免反代场景下的 403 问题。
+- **新上传的图片**：通过走访表单上传，由容器写入挂载的 `uploads/` 目录，nginx 自动可读。
+
+## 五、验证部署
 
 ```bash
+# 查看容器状态
+docker ps --filter name=village-map
+
+# 查看启动日志（看到 "Ready in xxx ms" 即成功）
 docker logs -f village-map
+
+# 本机健康检查
+curl http://127.0.0.1:3002/village-map/api/health
+# 应返回：{"ok":true}
 ```
 
-看到 `Ready in xxx ms` 即成功。
+访问 `https://www.axuxtl.xyz/village-map`，使用默认账号登录：
 
-### 5. 配置 nginx 反向代理
+| 用户名 | 密码 |
+|--------|------|
+| `admin` | `admin123` |
 
-在 `nginx.conf` 的 `server`（443 ssl）块中添加村智图配置（仓库 `nginx.conf` 已包含，参考用）：
+## 六、Nginx 配置
+
+`nginx.conf` 中已配置 `/village-map` 反向代理到 `127.0.0.1:3002`：
 
 ```nginx
 # ========== 村智图（Next.js standalone 3002） ==========
-# 上传图片由 nginx 直接服务静态文件，不经过 Next.js 容器
-# （避免 middleware/standalone 静态服务在反代场景下的 403 问题）
-location /village-map/uploads/ {
-    alias /usr/local/nginx/html/village-map/uploads/;
-    expires 7d;
-    add_header Cache-Control "public, noindex";
-    add_header X-Robots-Tag "noindex, noarchive";
-}
 location ^~ /village-map {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Connection '';
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 300s;
+}
+location /village-map/ {
     proxy_pass http://127.0.0.1:3002;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -119,111 +144,56 @@ location ^~ /village-map {
 }
 ```
 
-说明：
-- `location ^~ /village-map` 用 `^~` 前缀匹配，优先级高于正则，能同时覆盖 `/village-map`、`/village-map/`、`/village-map/login` 等所有子路径，无需再写一个 `/village-map/`。
-- 上传文件走 `alias` 直接由 nginx 读取磁盘，不经容器，避免 standalone 模式下静态资源 403。
-
-重载 nginx：
+首次部署需把 `nginx.conf` 复制到 nginx 配置目录并重载：
 
 ```bash
-nginx -t && nginx -s reload
+cp nginx.conf /usr/local/nginx/conf/nginx.conf
+nginx -t          # 测试配置
+nginx -s reload   # 重载
 ```
 
-### 6. 访问
+## 七、Dockerfile 说明
 
-浏览器打开：
+Dockerfile 内已硬编码生产环境变量（无需额外配置）：
 
-```
-https://www.axuxtl.xyz/village-map/login
-```
+| 环境变量 | 说明 |
+|----------|------|
+| `JWT_SECRET` | JWT 鉴权密钥（生产环境必需） |
+| `NEXT_PUBLIC_AMAP_KEY` | 高德地图 JSAPI Key |
+| `NEXT_PUBLIC_AMAP_SECRET` | 高德地图 JSAPI 安全密钥 |
+| `PORT` | 运行端口（3002） |
+| `HOSTNAME` | 监听地址（0.0.0.0） |
 
-演示账号：
-- 用户名：`admin`
-- 密码：`admin123`
+构建流程：
+1. `node:20-slim` 基础镜像（阿里云镜像源加速）
+2. `npm install` 安装依赖（npmmirror 加速）
+3. `npm run build` 生成 standalone 产物
+4. 复制 `static` 和 `public` 到 standalone
+5. `WORKDIR /app/.next/standalone`，运行 `node server.js`
 
-## 四、环境变量
+## 八、数据持久化
 
-`.env.local` 内容（构建时注入）：
+| 数据 | 宿主机路径 | 容器路径 | 说明 |
+|------|-----------|---------|------|
+| 数据库 | `/usr/local/nginx/html/village-map/data/app.db` | `/app/.next/standalone/data/app.db` | SQLite，含 users/households/visits/members 表 |
+| 上传图片 | `/usr/local/nginx/html/village-map/uploads/` | `/app/.next/standalone/public/uploads/` | 走访照片 |
 
-```bash
-NEXT_PUBLIC_AMAP_KEY=0725c389055177586ede0637887fcde2
-NEXT_PUBLIC_AMAP_SECRET=31b32c8992a245df88ff4a90aba5a1cf
-```
+**备份：** 直接备份宿主机的 `data/` 和 `uploads/` 目录即可。
 
-如需更换高德地图 Key，修改 `.env.local` 后重新打包部署即可。
+## 九、更新部署
 
-## 五、数据备份
+代码更新后，重新打包上传，再次执行 `./deploy.sh` 即可。容器会重建镜像并替换旧容器，数据卷保留不丢。
 
-数据库文件位于服务器：
+## 十、常见问题
 
-```
-/usr/local/nginx/html/village-map/data/app.db
-```
+### Q1: 容器启动后访问 502
+检查容器是否运行：`docker ps`。若未运行，查日志：`docker logs village-map`。
 
-备份：
+### Q2: 登录提示"登录已过期"
+检查 Dockerfile 中 `JWT_SECRET` 是否设置。该变量生产环境必需。
 
-```bash
-cp /usr/local/nginx/html/village-map/data/app.db /usr/local/nginx/html/village-map/data/app.db.bak.$(date +%Y%m%d)
-```
+### Q3: 地图加载不出来
+检查 `NEXT_PUBLIC_AMAP_KEY` 和 `NEXT_PUBLIC_AMAP_SECRET` 是否正确（高德开放平台申请）。
 
-上传文件位于：
-
-```
-/usr/local/nginx/html/village-map/uploads/
-```
-
-## 六、后续更新
-
-代码修改后重新打包上传，然后执行：
-
-```bash
-cd /usr/local/nginx/html/village-map
-./deploy.sh
-```
-
-`deploy.sh` 会重新构建镜像并重启容器，数据库和上传文件不会丢失（已通过挂载持久化）。
-
-## 七、常用命令
-
-```bash
-# 查看容器状态
-docker ps --filter name=village-map
-
-# 查看实时日志
-docker logs -f village-map
-
-# 进入容器
-docker exec -it village-map sh
-
-# 停止容器
-docker stop village-map
-
-# 重启容器
-docker restart village-map
-
-# 删除容器
-docker rm -f village-map
-
-# 手动重新构建并部署
-cd /usr/local/nginx/html/village-map
-docker build -t village-map .
-docker rm -f village-map
-docker run -d \
-  --name village-map \
-  --restart always \
-  -p 3002:3002 \
-  -v /usr/local/nginx/html/village-map/data:/app/.next/standalone/data \
-  -v /usr/local/nginx/html/village-map/uploads:/app/.next/standalone/public/uploads \
-  village-map
-```
-
-## 八、回滚
-
-```bash
-cd /usr/local/nginx/html
-docker rm -f village-map
-rm -rf village-map
-mv village-map-old village-map
-cd village-map
-./deploy.sh
-```
+### Q4: 上传图片显示不了
+检查 `public/uploads/` 目录权限，确保容器可读写：`chmod -R 755 public/uploads`。
