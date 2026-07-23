@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
-import { DEFAULT_CENTER, DEFAULT_ZOOM } from "@/lib/amap";
+import { getMapConfig } from "@/lib/amap";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AMapInstance: any = null;
@@ -114,11 +114,12 @@ export function MapContainer({
           AMap.getConfig().appname = "amap-jsapi-skill";
           AMapInstance = AMap;
 
-          // 初始化时直接定位到当前位置，用默认中心作为兜底
+          // 初始化时直接定位到当前位置，用用户设置的默认中心作为兜底
+          const { center: savedCenter, zoom: savedZoom } = getMapConfig();
           const map = new AMap.Map(containerRef.current, {
             viewMode: "2D",
-            zoom: DEFAULT_ZOOM,
-            center: DEFAULT_CENTER,
+            zoom: savedZoom,
+            center: savedCenter,
             mapStyle: "amap://styles/whitesmoke",
           });
 
@@ -216,7 +217,7 @@ export function MapContainer({
 
           geolocation.on("error", () => {
             // 定位失败，回退到默认中心
-            map.setCenter(DEFAULT_CENTER);
+            map.setCenter(getMapConfig().center);
             setMapReady(true);
           });
 

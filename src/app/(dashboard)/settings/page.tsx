@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Settings, User, MapPin, Info } from "lucide-react";
+import { MapSettingsPicker } from "@/components/map/MapSettingsPicker";
 
 export default function SettingsPage() {
   const [userInfo, setUserInfo] = useState<{ username: string; role: string }>({
@@ -86,7 +87,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Section 2: 地图设置 */}
+      {/* Section 2: 地图设置（地图选点） */}
       <div
         style={{
           background: "#fff",
@@ -106,23 +107,10 @@ export default function SettingsPage() {
         >
           <MapPin size={18} color="#e74c3c" />
           <span style={{ fontSize: 15, fontWeight: 700, color: "#2b405b" }}>
-            地图设置
+            地图默认中心
           </span>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "#8a95a8", minWidth: 70 }}>默认中心</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#2b405b" }}>
-              114.34, 30.52
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "#8a95a8", minWidth: 70 }}>说明</span>
-            <span style={{ fontSize: 13, color: "#5a6577" }}>
-              地图默认中心点坐标（经度, 纬度）
-            </span>
-          </div>
-        </div>
+        <MapSettingsPicker />
       </div>
 
       {/* Section 3: 关于系统 */}
