@@ -13,17 +13,20 @@ function MobileNavFallback() {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    let redirected = false;
     const checkToken = () => {
       const token = localStorage.getItem("token");
       if (!token) {
-        setReady(false);
+        // 未登录直接跳转登录页，避免显示 404 / 空白页
+        if (!redirected) {
+          redirected = true;
+          router.replace("/login");
+        }
       } else {
         setReady(true);
       }
-      setChecking(false);
     };
 
     checkToken();
@@ -62,29 +65,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router, ready]);
 
   if (!ready) {
+    // 加载中：显示简洁的过渡屏，不渲染侧边栏/底栏以免布局闪烁
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, color: "#8a95a8", fontSize: 14 }}>
-        <div style={{ textAlign: "center" }}>
-          {checking ? "加载中..." : "未登录，请重新登录"}
-          {!checking && (
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                display: "block",
-                margin: "12px auto 0",
-                padding: "8px 20px",
-                border: "none",
-                borderRadius: 8,
-                background: "#2f80ed",
-                color: "#fff",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              去登录
-            </button>
-          )}
-        </div>
+        <div style={{ textAlign: "center" }}>加载中...</div>
       </div>
     );
   }
