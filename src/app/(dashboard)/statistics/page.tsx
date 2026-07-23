@@ -161,6 +161,7 @@ export default function StatisticsPage() {
         </div>
 
         <div
+          className="bar-chart-container"
           style={{
             display: "flex",
             alignItems: "flex-end",
@@ -174,6 +175,7 @@ export default function StatisticsPage() {
               key={g.name}
               style={{
                 flex: 1,
+                minWidth: 0,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -196,7 +198,7 @@ export default function StatisticsPage() {
                   transition: "height 0.3s",
                 }}
               />
-              <span style={{ fontSize: 10, color: "#8a95a8" }}>{g.name}</span>
+              <span style={{ fontSize: 10, color: "#8a95a8", textAlign: "center", wordBreak: "keep-all" }}>{g.name}</span>
             </div>
           ))}
         </div>

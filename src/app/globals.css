@@ -17,15 +17,20 @@
 * {
   box-sizing: border-box;
 }
-html,
+html {
+  margin: 0;
+  min-height: 100%;
+  background: #f7f9fc;
+  /* 防止移动端横向滚动（clip 不会破坏 position: sticky） */
+  overflow-x: clip;
+}
 body {
   margin: 0;
   min-height: 100%;
   background: #f7f9fc;
-}
-body {
   color: var(--ink);
   font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow-x: clip;
 }
 button,
 input,
@@ -2622,13 +2627,16 @@ select:focus-visible {
 
 @media (max-width: 760px) {
   body {
-    padding-bottom: 65px;
+    /* 与 mobile-nav 高度一致，避免多余滚动 */
+    padding-bottom: 62px;
   }
   .sidebar {
     display: none;
   }
   .workspace {
     margin-left: 0;
+    /* 防止内部元素撑出横向滚动 */
+    overflow-x: hidden;
   }
   .topbar {
     position: sticky;
@@ -2656,16 +2664,16 @@ select:focus-visible {
     width: auto;
     height: 35px;
     padding: 0 8px;
+    min-width: 0;
   }
   .header-search kbd,
   .top-actions {
     display: none;
   }
 
-  /* Map page mobile */
+  /* Map page mobile: 减去 topbar(60) + mobile-nav(62) 高度，一屏完整显示 */
   .map-page {
-    height: calc(100vh - 60px);
-    /* body 已经有 padding-bottom 给 mobile-nav 留空间，这里不再重复 */
+    height: calc(100vh - 122px);
     padding-bottom: 0;
   }
   .map-toolbar {

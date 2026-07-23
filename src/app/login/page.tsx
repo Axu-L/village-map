@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { apiUrl } from "@/lib/api";
@@ -11,6 +11,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 已登录用户直接跳转工作台，避免重复看到登录页
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      router.replace("/map");
+    }
+  }, [router]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
