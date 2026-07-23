@@ -23,4 +23,3 @@ next-env.d.ts
 
 # deploy artifacts (zip only)
 village-map-deploy.zip
-village-map-deploy.tar.gz
