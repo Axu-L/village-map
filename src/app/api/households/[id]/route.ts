@@ -1,16 +1,9 @@
 import { db } from "@/db";
 import { households } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { parseRow } from "@/lib/db-utils";
 
 export const dynamic = "force-dynamic";
-
-// 将 SQLite 返回的 tags JSON 字符串解析为数组
-function parseRow(row: any) {
-  return {
-    ...row,
-    tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags || [],
-  };
-}
 
 export async function GET(
   request: Request,
@@ -18,7 +11,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const [data] = await db.select().from(households).where(eq(households.id, Number(id)));
+    const idNum = Number(id);
+    if (isNaN(idNum)) {
+      return Response.json({ message: "无效的 ID" }, { status: 400 });
+    }
+    const [data] = await db.select().from(households).where(eq(households.id, idNum));
     if (!data) {
       return Response.json({ message: "住户不存在" }, { status: 404 });
     }
@@ -35,21 +32,48 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const idNum = Number(id);
+    if (isNaN(idNum)) {
+      return Response.json({ message: "无效的 ID" }, { status: 400 });
+    }
     const body = await request.json();
+
+    // 构建更新字段：用 !== undefined / != null 判断，避免 falsy 值（0、""）被短路
+    const updateFields: Record<string, unknown> = {};
+    if (body.headName !== undefined) {
+      updateFields.headName = body.headName.trim();
+    }
+    // householdName 独立于 headName 判断
+    if (body.householdName !== undefined) {
+      updateFields.householdName = body.householdName?.trim() || (body.headName ? `${body.headName.trim()}家` : undefined);
+    }
+    if (body.phone !== undefined) {
+      updateFields.phone = body.phone.trim();
+    }
+    if (body.groupName !== undefined) {
+      updateFields.groupName = body.groupName;
+    }
+    if (body.address !== undefined) {
+      updateFields.address = body.address.trim();
+    }
+    // memberCount 用 != null 判断，支持设为 0
+    if (body.memberCount != null) {
+      updateFields.memberCount = Number(body.memberCount);
+    }
+    if (body.tags !== undefined) {
+      updateFields.tags = JSON.stringify(Array.isArray(body.tags) ? body.tags : []);
+    }
+    if (body.latitude !== undefined) {
+      updateFields.latitude = String(body.latitude);
+    }
+    if (body.longitude !== undefined) {
+      updateFields.longitude = String(body.longitude);
+    }
+
     const [updated] = await db
       .update(households)
-      .set({
-        ...body.headName && { headName: body.headName.trim() },
-        ...body.headName && { householdName: body.householdName?.trim() || `${body.headName.trim()}家` },
-        ...body.phone && { phone: body.phone.trim() },
-        ...body.groupName && { groupName: body.groupName },
-        ...body.address && { address: body.address.trim() },
-        ...body.memberCount && { memberCount: Number(body.memberCount) },
-        ...body.tags && { tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []) },
-        ...body.latitude && { latitude: String(body.latitude) },
-        ...body.longitude && { longitude: String(body.longitude) },
-      })
-      .where(eq(households.id, Number(id)))
+      .set(updateFields)
+      .where(eq(households.id, idNum))
       .returning();
     if (!updated) {
       return Response.json({ message: "住户不存在" }, { status: 404 });
@@ -67,7 +91,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const [deleted] = await db.delete(households).where(eq(households.id, Number(id))).returning();
+    const idNum = Number(id);
+    if (isNaN(idNum)) {
+      return Response.json({ message: "无效的 ID" }, { status: 400 });
+    }
+    const [deleted] = await db.delete(households).where(eq(households.id, idNum)).returning();
     if (!deleted) {
       return Response.json({ message: "住户不存在" }, { status: 404 });
     }

@@ -4,6 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
 import { getMapSettings, initAMap } from "@/lib/amap";
+import { GEOLOCATION_INTERVAL, VISIT_ARRIVE_THRESHOLD } from "@/lib/constants";
+
+/** HTML 转义，防止 marker content 中的存储型 XSS */
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AMapInstance: any = null;
@@ -65,6 +76,11 @@ export function MapContainer({
   const routePlannerRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geolocationRef = useRef<any>(null);
+  // 位置搜索：PlaceSearch 实例和临时标记
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const placeSearchRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tempMarkerRef = useRef<any>(null);
   // 卫星图层和路网图层引用（用于地图类型切换）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const satelliteLayerRef = useRef<any>(null);
@@ -87,6 +103,9 @@ export function MapContainer({
   visitHouseholdsRef.current = visitHouseholds;
   const onArriveHouseholdRef = useRef(onArriveHousehold);
   onArriveHouseholdRef.current = onArriveHousehold;
+  // deviceorientation 处理函数引用（cleanup 时需要移除监听）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleOrientationRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null);
 
   // 初始化地图
   useEffect(() => {
@@ -100,17 +119,18 @@ export function MapContainer({
       "AMap.Driving",
       "AMap.Walking",
       "AMap.Riding",
+      "AMap.PlaceSearch",
     ])
-        .then((AMap: any) => {
-          AMap.getConfig().appname = "amap-jsapi-skill";
-          AMapInstance = AMap;
+      .then((AMap: any) => {
+        AMapInstance = AMap;
 
-          // 初始化时直接定位到当前位置，用用户设置的默认中心作为兜底
-          const { center: savedCenter, zoom: savedZoom } = getMapSettings();
+          // 从 localStorage 读取用户配置的地图设置（兜底用内置默认值）
+          const { center: userCenter, zoom: userZoom } = getMapSettings();
+
           const map = new AMap.Map(containerRef.current, {
             viewMode: "2D",
-            zoom: savedZoom,
-            center: savedCenter,
+            zoom: userZoom,
+            center: userCenter,
             mapStyle: "amap://styles/whitesmoke",
           });
 
@@ -139,10 +159,17 @@ export function MapContainer({
             extensions: "all",
           });
 
+          // 初始化位置搜索（用于搜索框的地名查找）
+          placeSearchRef.current = new AMap.PlaceSearch({
+            pageSize: 1,
+            pageIndex: 1,
+            extensions: "base",
+          });
+
           // 定位控件（隐藏默认按钮，我们用自定义按钮触发）
           const geolocation = new AMap.Geolocation({
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: GEOLOCATION_INTERVAL,
             zoomToAccuracy: true,
             GeoLocationFirst: true,
             showButton: false,
@@ -169,6 +196,11 @@ export function MapContainer({
           });
           map.addControl(geolocation);
           geolocationRef.current = geolocation;
+
+          // 地图实例已就绪，立即显示（不等待定位结果，避免定位超时期间地图被 loading 遮罩盖住）
+          mapRef.current = map;
+          setMapReady(true);
+
           geolocation.getCurrentPosition();
 
           geolocation.on("complete", (data: any) => {
@@ -196,20 +228,18 @@ export function MapContainer({
                   const lat = Number(h.latitude);
                   if (isNaN(lng) || isNaN(lat)) return;
                   const dist = AMapInstance.GeometryUtil.distance(currentPos, [lng, lat]);
-                  if (dist <= 50) {
+                  if (dist <= VISIT_ARRIVE_THRESHOLD) {
                     visitedIdsRef.current.add(h.id);
                     onArriveHouseholdRef.current?.(h);
                   }
                 });
               }
             }
-            setMapReady(true);
           });
 
           geolocation.on("error", () => {
-            // 定位失败，回退到默认中心
+            // 定位失败，回退到默认中心（地图已在上方 setMapReady(true) 显示）
             map.setCenter(getMapSettings().center);
-            setMapReady(true);
           });
 
           // 监听设备朝向，旋转定位蓝点
@@ -229,12 +259,20 @@ export function MapContainer({
               // 需要用户手势触发，这里先不请求，在定位按钮点击时请求
             } else {
               window.addEventListener("deviceorientation", handleOrientation);
+              // 存储引用供 cleanup 移除监听
+              handleOrientationRef.current = handleOrientation;
             }
           }
 
           map.on("click", (e: any) => {
             const lng = e.lnglat.getLng();
             const lat = e.lnglat.getLat();
+
+            // 点击地图时清除位置搜索的临时标记
+            if (tempMarkerRef.current) {
+              tempMarkerRef.current.setMap(null);
+              tempMarkerRef.current = null;
+            }
 
             if (onMapClickRef.current) {
               onMapClickRef.current(lng, lat);
@@ -254,20 +292,99 @@ export function MapContainer({
               );
             }
           });
-
-          mapRef.current = map;
         })
         .catch((e: Error) => {
           console.error("地图加载失败", e);
         });
 
     return () => {
+      // 取消语音播报，防止组件卸载后语音继续
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      // 移除 deviceorientation 监听，防止内存泄漏
+      if (handleOrientationRef.current) {
+        window.removeEventListener("deviceorientation", handleOrientationRef.current);
+        handleOrientationRef.current = null;
+      }
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null);
+        tempMarkerRef.current = null;
+      }
       if (mapRef.current) {
         mapRef.current.destroy();
         mapRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 监听地图设置变化：用户在设置页修改中心/缩放后，实时应用到当前地图
+  useEffect(() => {
+    const handler = () => {
+      if (!mapRef.current) return;
+      const { center, zoom } = getMapSettings();
+      mapRef.current.setZoomAndCenter(zoom, center);
+    };
+    window.addEventListener("map-settings-changed", handler);
+    return () => window.removeEventListener("map-settings-changed", handler);
+  }, []);
+
+  // 监听位置搜索事件：来自 Topbar 搜索框的地点选择
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        name: string;
+        adcode?: string;
+      };
+      if (!mapRef.current || !AMapInstance || !placeSearchRef.current) return;
+      const AMap = AMapInstance;
+      const map = mapRef.current;
+      const placeSearch = placeSearchRef.current;
+
+      // 限定搜索城市（如果有 adcode）
+      if (detail.adcode) {
+        placeSearch.setCity(detail.adcode);
+        placeSearch.setCityLimit(true);
+      } else {
+        placeSearch.setCityLimit(false);
+      }
+
+      placeSearch.search(detail.name, (status: string, result: any) => {
+        if (status !== "complete" || !result?.poiList?.pois?.length) return;
+        const poi = result.poiList.pois[0];
+        if (!poi.location) return;
+        const lng = poi.location.getLng();
+        const lat = poi.location.getLat();
+
+        // 清除旧的临时标记
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.setMap(null);
+          tempMarkerRef.current = null;
+        }
+
+        // 飞行到目标位置
+        map.setZoomAndCenter(16, [lng, lat], true);
+
+        // 添加临时位置标记
+        const marker = new AMap.Marker({
+          position: [lng, lat],
+          content: `
+            <div style="position:relative;display:grid;place-items:center;width:44px;height:44px;pointer-events:none;">
+              <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:rgba(47,128,237,.18);animation:ping 1.8s infinite;"></div>
+              <div style="position:relative;z-index:2;display:grid;place-items:center;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#2f80ed;border:3px solid white;box-shadow:0 4px 12px rgba(47,128,237,.45);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white" style="transform:rotate(45deg);"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+              </div>
+            </div>
+          `,
+          offset: new AMap.Pixel(-22, -42),
+        });
+        marker.setMap(map);
+        tempMarkerRef.current = marker;
+      });
+    };
+    window.addEventListener("map-locate", handler);
+    return () => window.removeEventListener("map-locate", handler);
   }, []);
 
   // 更新住户标记
@@ -298,12 +415,12 @@ export function MapContainer({
           ${isSelected ? `<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;background:${mainColor}33;animation:ping 1.8s infinite;"></div>` : ""}
           <div style="position:relative;z-index:2;display:grid;place-items:center;width:36px;height:36px;border:3px solid white;border-radius:50%;background:${mainColor};box-shadow:0 3px 10px ${mainColor}55;transition:transform .2s;${isSelected ? "transform:scale(1.15);" : ""}overflow:hidden;">
             ${family.lastVisitImage
-              ? `<img src="${family.lastVisitImage}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\\'18\\' height=\\'18\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'${iconPath}\\'/></svg>';" />`
+              ? `<img src="${escapeHtml(family.lastVisitImage)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.parentElement.innerHTML='<svg width=\\'18\\' height=\\'18\\' viewBox=\\'0 0 24 24\\' fill=\\'white\\'><path d=\\'${iconPath}\\'/></svg>';" />`
               : `<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="${iconPath}"/></svg>`
             }
           </div>
           ${tagCount > 1 ? `<div style="position:absolute;top:-4px;right:-4px;z-index:3;width:18px;height:18px;border-radius:50%;background:${isSelected ? "#2f80ed" : "#EB5757"};color:white;font-size:10px;font-weight:bold;display:grid;place-items:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.2);">${tagCount}</div>` : ""}
-          ${isSelected ? `<div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:6px;color:#2b405b;background:white;box-shadow:0 3px 10px rgba(34,55,75,.17);font-size:11px;font-weight:bold;white-space:nowrap;">${family.householdName}</div>` : ""}
+          ${isSelected ? `<div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:6px;color:#2b405b;background:white;box-shadow:0 3px 10px rgba(34,55,75,.17);font-size:11px;font-weight:bold;white-space:nowrap;">${escapeHtml(family.householdName)}</div>` : ""}
         </div>
       `;
 
@@ -533,10 +650,10 @@ export function MapContainer({
     if (visitMode && geolocationRef.current) {
       // 立即定位一次
       geolocationRef.current.getCurrentPosition();
-      // 每10秒定位一次
+      // 周期性定位检测是否到达住户附近
       visitWatchRef.current = setInterval(() => {
         geolocationRef.current?.getCurrentPosition();
-      }, 10000);
+      }, GEOLOCATION_INTERVAL);
     }
     return () => {
       if (visitWatchRef.current) {

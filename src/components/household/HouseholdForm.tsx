@@ -4,7 +4,8 @@ import { useState, FormEvent, useEffect } from "react";
 import { allTags, getTagColor } from "@/lib/tags";
 import { X, MapPin, Check, Loader2 } from "lucide-react";
 import { MapContainer } from "@/components/map/MapContainer";
-import type { Household } from "@/types";
+import { GROUP_NAMES } from "@/lib/constants";
+import type { Household, Tag } from "@/types";
 
 interface HouseholdFormProps {
   pickPosition: { lng: number; lat: number } | null;
@@ -28,10 +29,10 @@ export function HouseholdForm({
   const [memberCount, setMemberCount] = useState(
     initialData?.memberCount || 1
   );
-  const [tags, setTags] = useState<string[]>(initialData?.tags || []);
+  const [tags, setTags] = useState<Tag[]>(initialData?.tags || []);
   const [geocoding, setGeocoding] = useState(false);
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (tag: Tag) => {
     setTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
@@ -70,14 +71,14 @@ export function HouseholdForm({
     });
   };
 
-  const groups = Array.from({ length: 10 }, (_, i) => `第${["一","二","三","四","五","六","七","八","九","十"][i]}组`);
+  const groups = GROUP_NAMES;
 
   return (
     <div className="modal-layer" onClick={onClose}>
       <div className="household-form-modal" onClick={(e) => e.stopPropagation()}>
         <header>
           <h2>{initialData ? "编辑住户" : "新增住户"}</h2>
-          <button className="close-button" onClick={onClose}>
+          <button className="close-button" aria-label="关闭" onClick={onClose}>
             <X size={20} />
           </button>
         </header>
@@ -145,7 +146,10 @@ export function HouseholdForm({
                 type="number"
                 min={1}
                 value={memberCount}
-                onChange={(e) => setMemberCount(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setMemberCount(isNaN(n) ? 1 : Math.max(1, n));
+                }}
               />
             </div>
 

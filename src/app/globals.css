@@ -17,20 +17,15 @@
 * {
   box-sizing: border-box;
 }
-html {
-  margin: 0;
-  min-height: 100%;
-  background: #f7f9fc;
-  /* 防止移动端横向滚动（clip 不会破坏 position: sticky） */
-  overflow-x: clip;
-}
+html,
 body {
   margin: 0;
   min-height: 100%;
   background: #f7f9fc;
+}
+body {
   color: var(--ink);
   font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
-  overflow-x: clip;
 }
 button,
 input,
@@ -66,19 +61,6 @@ select:focus-visible {
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
-}
-@media (max-width: 760px) {
-  .toast-container {
-    top: 12px;
-    left: 16px;
-    right: 16px;
-    align-items: center;
-  }
-  .toast-item {
-    width: 100%;
-    max-width: 360px;
-    text-align: center;
-  }
 }
 .toast-item {
   padding: 10px 18px;
@@ -224,6 +206,8 @@ select:focus-visible {
   margin-left: 236px;
 }
 .topbar {
+  position: relative;
+  z-index: 30;
   height: 72px;
   display: flex;
   align-items: center;
@@ -268,6 +252,59 @@ select:focus-visible {
   background: white;
   font-family: inherit;
   font-size: 10px;
+  white-space: nowrap;
+}
+
+/* 搜索框位置建议下拉 */
+.search-tips-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(31, 55, 88, 0.18);
+  z-index: 999;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.search-tips-dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: #2f80ed;
+  transition: background 0.15s;
+}
+.search-tips-dropdown li:hover {
+  background: #f5f8fc;
+}
+.search-tips-dropdown li .tip-text {
+  flex: 1;
+  min-width: 0;
+}
+.search-tips-dropdown li .tip-name {
+  font-size: 13px;
+  color: #2b405b;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-tips-dropdown li .tip-district {
+  font-size: 11px;
+  color: #98a4b5;
+  line-height: 1.3;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .top-actions {
@@ -2311,275 +2348,15 @@ select:focus-visible {
   display: none;
 }
 
-.household-detail-page {
-  padding: 20px 24px;
-  max-width: 720px;
-  margin: 0 auto;
-}
-.detail-hero-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 20px 24px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px 24px;
-}
-.detail-photo-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-.member-tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.member-modal {
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px 28px;
-  width: 420px;
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-}
-
-/* Page-specific grids (used by inline-style pages) */
-.people-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-.stat-grid-custom {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 28px;
-}
-.analytics-grid-custom {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.transfer-grid-custom {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-/* ──────────────────── Login Page ──────────────────── */
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-.login-bg {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #1a5c3a 0%, #2f80ed 50%, #1a5c3a 100%);
-  z-index: 0;
-}
-.login-bg::before {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 40%;
-  background: linear-gradient(0deg, rgba(39, 174, 96, 0.3) 0%, transparent 100%);
-}
-.login-bg::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200'%3E%3Cpath fill='%2327AE6015' d='M0 200V80c120-40 240 20 360-10s240-60 360-30 240 50 360 20 240-70 360-40v180z'/%3E%3Cpath fill='%2327AE6010' d='M0 200V120c120-20 240 40 360 10s240-70 360-40 240 30 360 10 240-60 360-30v130z'/%3E%3C/svg%3E") no-repeat bottom center;
-  background-size: cover;
-}
-.login-card {
-  position: relative;
-  z-index: 1;
-  width: min(420px, 90vw);
-  padding: 40px 36px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(10px);
-}
-.login-logo {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-.brand-mark-large {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(145deg, #45a873, #188d4f);
-  border-radius: 16px 16px 16px 4px;
-  box-shadow: 0 8px 20px rgba(39, 174, 96, 0.3);
-}
-.login-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 800;
-  color: #1a3150;
-  letter-spacing: 0.05em;
-}
-.login-subtitle {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #8a95a8;
-  letter-spacing: 0.1em;
-}
-.login-desc {
-  text-align: center;
-  margin: 12px 0 28px;
-  color: #68758a;
-  font-size: 14px;
-}
-.login-field {
-  margin-bottom: 16px;
-}
-.login-field label {
-  display: block;
-  margin-bottom: 6px;
-  color: #536177;
-  font-size: 12px;
-  font-weight: 600;
-}
-.login-field input {
-  width: 100%;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  font-size: 14px;
-  color: #30405c;
-  background: #f9fbfd;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.login-field input:focus {
+/* ──────────────────── Login Page Global Overrides ──────────────────── */
+.login-page input:focus {
   border-color: #2f80ed;
   box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.1);
-}
-.login-error {
-  margin: 0 0 12px;
-  color: #eb5757;
-  font-size: 12px;
-  text-align: center;
-}
-.login-button {
-  width: 100%;
-  height: 46px;
-  margin-top: 8px;
-  border: 0;
-  border-radius: 10px;
-  color: #fff;
-  background: linear-gradient(135deg, #27ae60, #2f80ed);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.login-button:hover {
-  opacity: 0.9;
-}
-.login-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.login-hint {
-  text-align: center;
-  margin: 20px 0 0;
-  color: #aab3c0;
-  font-size: 11px;
-}
-
-/* Login mobile */
-@media (max-width: 760px) {
-  .login-card {
-    padding: 32px 24px;
-    border-radius: 16px;
-  }
-  .login-title {
-    font-size: 24px;
-  }
-  .brand-mark-large {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════
    Responsive Breakpoints
    ═══════════════════════════════════════════════════════ */
-
-@media (max-width: 760px) {
-  /* Modal layer: 手机端全屏/底部 sheet，不保留 padding */
-  .modal-layer {
-    align-items: flex-end;
-    padding: 0;
-  }
-  .modal {
-    width: 100%;
-    max-height: 92vh;
-    border-radius: 16px 16px 0 0;
-  }
-
-  /* Household detail page mobile */
-  .household-detail-page {
-    padding: 16px;
-  }
-  .detail-hero-card {
-    padding: 16px;
-  }
-  .detail-info-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .detail-photo-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .member-modal {
-    width: 100%;
-    max-width: 100%;
-    max-height: 100vh;
-    border-radius: 16px 16px 0 0;
-    padding: 20px;
-  }
-
-  /* Page-specific grids mobile */
-  .people-grid {
-    grid-template-columns: 1fr;
-  }
-  .stat-grid-custom {
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .analytics-grid-custom {
-    grid-template-columns: 1fr;
-  }
-  .transfer-grid-custom {
-    grid-template-columns: 1fr;
-  }
-}
 
 @media (max-width: 1180px) {
   .sidebar {
@@ -2627,20 +2404,20 @@ select:focus-visible {
 
 @media (max-width: 760px) {
   body {
-    /* 与 mobile-nav 高度一致，避免多余滚动 */
-    padding-bottom: 62px;
+    /* 移除 padding-bottom，改由各页面自行控制底部留白 */
+    padding-bottom: 0;
   }
   .sidebar {
     display: none;
   }
   .workspace {
     margin-left: 0;
-    /* 防止内部元素撑出横向滚动 */
-    overflow-x: hidden;
+    /* 给底部 fixed tab 栏留空间，避免内容被遮挡 */
+    padding-bottom: 62px;
   }
   .topbar {
     position: sticky;
-    z-index: 20;
+    z-index: 50;
     top: 0;
     height: 60px;
     gap: 10px;
@@ -2664,17 +2441,18 @@ select:focus-visible {
     width: auto;
     height: 35px;
     padding: 0 8px;
-    min-width: 0;
   }
   .header-search kbd,
   .top-actions {
     display: none;
   }
 
-  /* Map page mobile: 减去 topbar(60) + mobile-nav(62) 高度，一屏完整显示 */
+  /* Map page mobile */
   .map-page {
-    height: calc(100vh - 122px);
-    padding-bottom: 0;
+    /* 减去 topbar(60px) 和 workspace padding-bottom(62px)，精确填满不溢出 */
+    height: calc(100vh - 60px - 62px);
+    overflow: hidden;
+    box-sizing: border-box;
   }
   .map-toolbar {
     flex-wrap: wrap;
@@ -2717,16 +2495,13 @@ select:focus-visible {
     font-size: 12px;
   }
   .map-area {
-    min-height: 0;
+    /* flex 填满剩余空间，禁止 min-height 撑出空白 */
+    flex: 1;
+    min-height: 0 !important;
+    overflow: hidden;
   }
-  /* 地图浮动按钮抬高，避开底部导航 */
-  .map-locate-btn {
-    right: 12px;
-    bottom: 78px;
-  }
-  .map-type-btn {
-    right: 12px;
-    bottom: 124px;
+  #amap-container {
+    min-height: 0 !important;
   }
   /* 路线信息浮层在手机端撑满宽度 */
   .route-info-overlay {
@@ -2758,15 +2533,20 @@ select:focus-visible {
     top: auto;
     width: 100%;
     max-height: 67vh;
+    /* 底部留出 tab 栏高度，避免被遮挡 */
+    bottom: 62px;
     overflow: auto;
     border-radius: 20px 20px 0 0;
     transform: translateY(110%);
+    /* z-index 足够高，确保盖住高德地图内部所有元素 */
+    z-index: 9999;
   }
   .drawer.open {
     transform: translateY(0);
   }
   .drawer-backdrop.visible {
     background: rgba(21, 32, 52, 0.25);
+    z-index: 9998;
   }
   .drawer-grabber {
     display: block;
@@ -2800,35 +2580,27 @@ select:focus-visible {
   }
 
   /* Household form mobile: stack layout */
-  .household-form-modal {
-    width: 100%;
-    max-height: 96vh;
-    border-radius: 16px 16px 0 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .household-form-modal > header {
-    flex-shrink: 0;
-  }
   .form-map-layout {
     flex-direction: column;
     height: auto;
-    max-height: calc(96vh - 60px);
-    min-height: 0;
-    flex: 1;
+    max-height: calc(100vh - 60px);
   }
   .form-left {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #edf1f4;
-    max-height: 52vh;
-    flex-shrink: 1;
+    max-height: 55vh;
   }
   .form-right {
     width: 100%;
-    min-height: 180px;
-    max-height: 34vh;
-    flex: 1;
+    /* 明确固定高度，确保高德地图容器能获取到尺寸渲染 canvas */
+    height: 35vh;
+    min-height: 220px;
+  }
+  .household-form-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
   }
   .household-form-modal > header {
     padding: 14px 16px 10px;
@@ -2840,8 +2612,8 @@ select:focus-visible {
   /* Visit form mobile */
   .visit-form-modal {
     width: 100%;
-    max-height: 92vh;
-    border-radius: 16px 16px 0 0;
+    max-height: 100vh;
+    border-radius: 0;
   }
   .visit-form-modal > header {
     padding: 14px 16px 10px;
@@ -2883,7 +2655,7 @@ select:focus-visible {
   .mobile-nav {
     display: flex;
     position: fixed;
-    z-index: 50;
+    z-index: 1000;
     bottom: 0;
     left: 0;
     right: 0;
@@ -2918,6 +2690,37 @@ select:focus-visible {
     color: white;
     background: var(--blue);
     box-shadow: 0 4px 14px rgba(47, 128, 237, 0.3);
-    font-size: 0;
+  }
+  /* 隐藏"新增"文字，只保留图标，确保 svg 在 a 中正确居中 */
+  .mobile-nav a.mobile-add span {
+    display: none;
+  }
+
+  /* 高德地图 logo / 版权 / 比例尺等控件上移，避免被底部 tab 栏（62px）遮挡 */
+  .amap-logo,
+  .amap-copyright {
+    bottom: 62px !important;
+    z-index: 1 !important;
+  }
+  .amap-scalecontrol {
+    bottom: 62px !important;
+  }
+
+  /* ========== 统计页面移动端布局 ========== */
+  /* 4 个统计卡片：4列 → 2列 */
+  .stats-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
+  }
+  /* 饼图+趋势：2列 → 1列纵向排列 */
+  .stats-charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  /* 饼图内部：横向 → 纵向（饼图在上，图例在下） */
+  .pie-chart-row {
+    flex-direction: column !important;
+    gap: 14px !important;
   }
 }

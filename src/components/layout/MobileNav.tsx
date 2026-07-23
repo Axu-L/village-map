@@ -1,30 +1,25 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Home, Menu, Plus, Users } from "lucide-react";
+import { BarChart3, Home, Plus, Settings, Users } from "lucide-react";
 
 const mobileNavItems = [
   { href: "/map", label: "地图", icon: Home },
   { href: "/people", label: "人员", icon: Users },
-  { href: "/map?add=1", label: "新增", icon: Plus, isAdd: true },
+  { href: "/map", label: "新增", icon: Plus, isAdd: true },
   { href: "/statistics", label: "统计", icon: BarChart3 },
-  { href: "/settings", label: "我的", icon: Menu },
+  { href: "/settings", label: "我的", icon: Settings },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const isActive = (href: string) => {
-    const [path, query] = href.split("?");
-    if (pathname !== path) return false;
-    if (!query) return true;
-    const params = new URLSearchParams(query);
-    for (const [key, value] of params.entries()) {
-      if (searchParams.get(key) !== value) return false;
-    }
-    return true;
+  const handleAddClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 加时间戳强制触发 useSearchParams 变化，即使在同一路由也能打开新增弹窗
+    router.push(`/map?add=1&_t=${Date.now()}`);
   };
 
   return (
@@ -33,7 +28,8 @@ export function MobileNav() {
         <Link
           key={label}
           href={href}
-          className={isAdd ? "mobile-add" : isActive(href) ? "active" : ""}
+          className={isAdd ? "mobile-add" : pathname === href ? "active" : ""}
+          onClick={isAdd ? handleAddClick : undefined}
         >
           <Icon size={20} />
           <span>{label}</span>

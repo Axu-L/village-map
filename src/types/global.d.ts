@@ -3,4 +3,5 @@ interface Window {
     securityJsCode?: string;
     serviceHost?: string;
   };
+  __redirectingToLogin?: boolean;
 }

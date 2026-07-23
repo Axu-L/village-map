@@ -4,10 +4,8 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   BarChart3,
-  Bell,
   ChevronDown,
   ClipboardList,
-  Download,
   FileUp,
   Home,
   MapPin,
@@ -49,7 +47,7 @@ export function Sidebar() {
       </nav>
       <div className="sidebar-footer">
         <div className="security-note"><ShieldCheck size={17} /><span>数据安全保护中</span></div>
-        <button className="village-switch">花园村村委会 <ChevronDown size={15} /></button>
+        <button className="village-switch" disabled title="多村庄切换功能开发中">花园村村委会 <ChevronDown size={15} /></button>
       </div>
     </aside>
   );

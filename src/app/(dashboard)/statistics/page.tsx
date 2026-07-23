@@ -1,34 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Household } from "@/types";
+import type { Household, Visit } from "@/types";
 import { getTagColor } from "@/lib/tags";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { BarChart3, Users, AlertTriangle, Heart } from "lucide-react";
-
-const groupNames = [
-  "第一组", "第二组", "第三组", "第四组", "第五组",
-  "第六组", "第七组", "第八组", "第九组", "第十组",
-];
+import { useToast } from "@/components/ui/Toast";
+import { GROUP_NAMES } from "@/lib/constants";
 
 export default function StatisticsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
+  const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const hRes = await fetch(apiUrl("/api/households"));
-        const hData = await hRes.json();
+    let cancelled = false;
+    Promise.all([apiFetch("/api/households"), apiFetch("/api/visits")])
+      .then(([hData, vData]) => {
+        if (cancelled) return;
         setHouseholds(Array.isArray(hData) ? hData : []);
-      } catch (err) {
+        setVisits(Array.isArray(vData) ? vData : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
         console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+        toast("加载数据失败", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   if (loading) {
     return (
@@ -46,7 +49,7 @@ export default function StatisticsPage() {
   const dujuCount = households.filter((h) => safeTags(h).includes("独居老人")).length;
 
   // Per-group household counts
-  const groupCounts = groupNames.map((g) => ({
+  const groupCounts = GROUP_NAMES.map((g) => ({
     name: g,
     count: households.filter((h) => h.groupName === g).length,
   }));
@@ -75,24 +78,19 @@ export default function StatisticsPage() {
     .map((s) => `${s.color} ${s.start}deg ${s.end}deg`)
     .join(", ");
 
-  // Trend: last 6 months based on households' lastVisitAt
+  // Trend: last 6 months based on actual visits (visitDate)
   const now = new Date();
   const months: { label: string; count: number }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const label = `${d.getMonth() + 1}月`;
     const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const count = households.filter(
-      (h) => h.lastVisitAt && h.lastVisitAt.startsWith(yearMonth)
+    const count = visits.filter(
+      (v) => v.visitDate && v.visitDate.startsWith(yearMonth)
     ).length;
     months.push({ label, count });
   }
   const hasVisitData = months.some((m) => m.count > 0);
-  if (!hasVisitData) {
-    months.forEach((m) => {
-      m.count = Math.floor(Math.random() * 8) + 2;
-    });
-  }
   const maxMonthCount = Math.max(...months.map((m) => m.count), 1);
 
   return (
@@ -109,7 +107,15 @@ export default function StatisticsPage() {
       </h1>
 
       {/* Top row: 4 stat cards */}
-      <div className="stat-grid-custom">
+      <div
+        className="stats-cards-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 14,
+          marginBottom: 28,
+        }}
+      >
         <StatCard
           icon={<Users size={20} />}
           label="重点户总数"
@@ -161,7 +167,6 @@ export default function StatisticsPage() {
         </div>
 
         <div
-          className="bar-chart-container"
           style={{
             display: "flex",
             alignItems: "flex-end",
@@ -175,7 +180,6 @@ export default function StatisticsPage() {
               key={g.name}
               style={{
                 flex: 1,
-                minWidth: 0,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -198,14 +202,21 @@ export default function StatisticsPage() {
                   transition: "height 0.3s",
                 }}
               />
-              <span style={{ fontSize: 10, color: "#8a95a8", textAlign: "center", wordBreak: "keep-all" }}>{g.name}</span>
+              <span style={{ fontSize: 10, color: "#8a95a8" }}>{g.name}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Two-column: Pie chart + Trend */}
-      <div className="analytics-grid-custom">
+      <div
+        className="stats-charts-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+        }}
+      >
         {/* Pie chart */}
         <div
           style={{
@@ -224,7 +235,7 @@ export default function StatisticsPage() {
               暂无数据
             </div>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div className="pie-chart-row" style={{ display: "flex", alignItems: "center", gap: 20 }}>
               <div
                 style={{
                   width: 120,
@@ -278,6 +289,20 @@ export default function StatisticsPage() {
             走访趋势（近6月）
           </div>
 
+          {!hasVisitData ? (
+            <div
+              style={{
+                height: 160,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#8a95a8",
+                fontSize: 13,
+              }}
+            >
+              暂无走访数据
+            </div>
+          ) : (
           <div
             style={{
               display: "flex",
@@ -316,6 +341,7 @@ export default function StatisticsPage() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

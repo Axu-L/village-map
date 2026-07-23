@@ -7,17 +7,19 @@ import type { RoutePlanParams } from "@/components/map/MapContainer";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { VisitForm } from "@/components/visit/VisitForm";
 import { RoutePlan } from "@/components/map/RoutePlan";
-import type { Household, Visit } from "@/types";
-import { apiUrl, assetUrl } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import type { Household, Tag, Visit } from "@/types";
+import { assetUrl, apiFetch } from "@/lib/api";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 function MapPageContent() {
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   const [households, setHouseholds] = useState<Household[]>([]);
   const [selected, setSelected] = useState<Household | null>(null);
-  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterTags, setFilterTags] = useState<Tag[]>([]);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showVisit, setShowVisit] = useState(false);
@@ -39,6 +41,8 @@ function MapPageContent() {
   const [routeHouseholds, setRouteHouseholds] = useState<Household[]>([]);
   const [visitHousehold, setVisitHousehold] = useState<Household | null>(null);
   const [visitMode, setVisitMode] = useState(false);
+  // 位置搜索模式：搜索框输入地名时为 true，隐藏"未找到住户"提示
+  const [locationSearching, setLocationSearching] = useState(false);
 
   // 监听导航步骤事件
   useEffect(() => {
@@ -55,11 +59,13 @@ function MapPageContent() {
 
   // 加载住户数据 + 走访记录（用于标记图片）
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
-      fetch(apiUrl("/api/households")).then((r) => r.json()),
-      fetch(apiUrl("/api/visits")).then((r) => r.json()),
+      apiFetch("/api/households"),
+      apiFetch("/api/visits"),
     ])
       .then(([hData, vData]) => {
+        if (cancelled) return;
         if (Array.isArray(hData)) {
           const visits: Visit[] = Array.isArray(vData) ? vData : [];
           // 按时间倒序，取每个住户最近一张走访照片
@@ -80,12 +86,15 @@ function MapPageContent() {
             imageMap.has(h.id) ? { ...h, lastVisitImage: imageMap.get(h.id) } : h
           );
           setHouseholds(enriched);
-        } else {
-          console.error("住户数据格式异常", hData);
         }
       })
-      .catch(console.error);
-  }, []);
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        toast("加载数据失败", "error");
+      });
+    return () => { cancelled = true; };
+  }, [toast]);
 
   // URL 参数触发新增
   useEffect(() => {
@@ -103,18 +112,29 @@ function MapPageContent() {
     return () => window.removeEventListener("global-search", handler);
   }, []);
 
+  // 监听搜索模式变化：位置搜索时不显示"未找到住户"提示
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent).detail as string;
+      setLocationSearching(mode === "location");
+    };
+    window.addEventListener("search-mode", handler);
+    return () => window.removeEventListener("search-mode", handler);
+  }, []);
+
   // 筛选逻辑
   const filtered = households.filter((h) => {
+    if (!h || typeof h.headName !== "string") return false;
     const tags = Array.isArray(h.tags) ? h.tags : [];
     const matchTag =
       filterTags.length === 0 || tags.some((t) => filterTags.includes(t));
     const q = search.toLowerCase();
     const matchSearch =
       !q ||
-      h.headName.toLowerCase().includes(q) ||
-      h.householdName.toLowerCase().includes(q) ||
-      h.phone.includes(q) ||
-      h.groupName.includes(q);
+      (h.headName || "").toLowerCase().includes(q) ||
+      (h.householdName || "").toLowerCase().includes(q) ||
+      (h.phone || "").includes(q) ||
+      (h.groupName || "").includes(q);
     return matchTag && matchSearch;
   });
 
@@ -128,51 +148,44 @@ function MapPageContent() {
 
   const handleSaveHousehold = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(apiUrl("/api/households"), {
+      const created = await apiFetch("/api/households", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        const created = await res.json();
-        setHouseholds((prev) => [...prev, created]);
-        setShowAdd(false);
-        setPickingMode(false);
-        setPickPosition(null);
-      } else if (res.status === 409) {
-        const err = await res.json();
-        alert(err.message || "该住户已存在");
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.message || "保存失败");
-      }
+      setHouseholds((prev) => [...prev, created]);
+      setShowAdd(false);
+      setPickingMode(false);
+      setPickPosition(null);
+      toast("住户已添加", "success");
     } catch (err) {
-      console.error("保存失败", err);
-      alert("网络错误，保存失败");
+      toast(err instanceof Error ? err.message : "保存失败", "error");
     }
   };
 
   const handleSaveVisit = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(apiUrl("/api/visits"), {
+      await apiFetch("/api/visits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        setShowVisit(false);
-        fetch(apiUrl("/api/households"))
-          .then((r) => r.json())
-          .then(setHouseholds);
-      }
+      setShowVisit(false);
+      setVisitHousehold(null);
+      toast("走访记录已保存", "success");
+      apiFetch("/api/households").then(setHouseholds).catch(() => {});
     } catch (err) {
-      console.error("保存走访失败", err);
+      toast(err instanceof Error ? err.message : "保存走访失败", "error");
     }
   };
 
   const handleNavigate = (family: Household) => {
-    const lng = family.longitude;
-    const lat = family.latitude;
+    const lng = Number(family.longitude);
+    const lat = Number(family.latitude);
+    if (isNaN(lng) || isNaN(lat) || (lng === 0 && lat === 0)) {
+      toast("该住户未设置位置信息", "error");
+      return;
+    }
     const name = encodeURIComponent(family.householdName);
     window.open(
       `https://uri.amap.com/navigation?to=${lng},${lat},${name}`,
@@ -232,8 +245,10 @@ function MapPageContent() {
           searchKey={search}
         />
 
-        {/* 搜索无结果提示 */}
-        {(search || filterTags.length > 0) && filtered.length === 0 && (
+        {/* 搜索无结果提示（位置搜索模式下不显示） */}
+        {(search || filterTags.length > 0) &&
+          filtered.length === 0 &&
+          !locationSearching && (
           <div className="search-empty-overlay">
             <div className="search-empty-card">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5">
@@ -261,7 +276,7 @@ function MapPageContent() {
             <div className="route-info-card">
               <div className="route-info-header">
                 <span>走访路线</span>
-                <button onClick={() => {
+                <button aria-label="关闭" onClick={() => {
                   setRoutePlan(null); setRouteInfo(null); setRouteCount(0);
                   setNavSteps([]); setShowNavPanel(false); setCurrentStepIdx(0);
                   setRouteHouseholds([]);

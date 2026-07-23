@@ -40,7 +40,7 @@ export function getTagColor(tag: string): string {
 }
 
 // 获取家庭主标签的颜色（取第一个标签）
-export function getHouseholdColor(tags: string[]): string {
+export function getHouseholdColor(tags: Tag[]): string {
   if (tags.length === 0) return "#8E99A4";
   return getTagColor(tags[0]);
 }

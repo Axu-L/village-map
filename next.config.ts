@@ -17,12 +17,38 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
-  // dev 模式下允许预览沙箱域名访问 HMR 资源，否则前端 JS 无法加载
+  // 明确指定 Turbopack 根目录，避免 workspace 推断失败
+  turbopack: {
+    root: __dirname,
+  },
+  // 允许预览沙箱域名访问开发资源（HMR / 客户端 JS），避免跨域阻塞导致页面无法水合
   allowedDevOrigins: [
     "127.0.0.1",
     "localhost",
-    "*.agent-sandbox-bj-a2-gw.traecontent.cn",
+    "*.agent-sandbox-bj-d3-gw.trae.cn",
+    "*.trae.cn",
   ],
+  // 安全响应头：全局基础防护 + 上传照片 noindex
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+        ],
+      },
+      {
+        // 上传的照片禁止搜索引擎索引
+        source: "/uploads/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, noarchive" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

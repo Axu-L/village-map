@@ -13,7 +13,7 @@ export default function NotFound() {
     }}>
       <h1 style={{ fontSize: 72, margin: 0, fontWeight: 800, color: "#2f80ed" }}>404</h1>
       <p style={{ fontSize: 16, color: "#8a95a8" }}>页面不存在</p>
-      <Link href="/" style={{
+      <Link href="/map" style={{
         padding: "10px 24px",
         borderRadius: 10,
         background: "linear-gradient(135deg, #27ae60, #2f80ed)",

@@ -12,9 +12,7 @@
 
 ## 二、打包说明（开发机执行）
 
-提供两种打包方式，根据需要选择：
-
-### 方式 A：含数据库（首次部署用）
+在项目根目录执行：
 
 ```bash
 tar -czf village-map.tar.gz . \
@@ -39,39 +37,7 @@ tar -czf village-map.tar.gz . \
 
 **已排除：** `node_modules`、`.next`、`.env.local`（含密钥）、`uploads/*`、`.git`、`.trae`、`*.log`
 
-> **适用场景：** 首次部署，或需要重置数据库时使用。更新部署时**不要用这个包**，会覆盖线上数据库。
-
-### 方式 B：不含数据库（更新部署用，推荐）
-
-```bash
-tar -czf village-map.tar.gz . \
-  --exclude='node_modules' \
-  --exclude='.next' \
-  --exclude='.trae' \
-  --exclude='.git' \
-  --exclude='village-map.tar.gz' \
-  --exclude='village-map*.zip' \
-  --exclude='.env.local' \
-  --exclude='public/uploads/*' \
-  --exclude='data' \
-  --exclude='*.log' \
-  --exclude='tsconfig.tsbuildinfo'
-```
-
-**比方式 A 多排除：** `data`（数据库目录）
-
-> **适用场景：** 日常更新部署。解压不会覆盖线上数据库和上传图片，数据安全。
-
-### 两种方式对比
-
-| 项 | 方式 A（含数据库） | 方式 B（不含数据库） |
-|---|---|---|
-| `data/app.db` | 包含 | 不包含 |
-| 首次部署 | 可用 | 可用（容器启动自动建表，但无初始数据） |
-| 更新部署 | 会覆盖线上数据库 | 不覆盖，数据安全 |
-| 推荐用途 | 首次部署 / 数据库重置 | 日常更新（推荐） |
-
-> **建议：** 首次部署用方式 A，后续更新都用方式 B。
+> **注意：** `data/app.db` 已包含在压缩包内，**无需单独上传数据库**。部署脚本会自动挂载到容器。
 
 ## 三、上传到服务器
 
@@ -93,18 +59,13 @@ tar -xzf village-map.tar.gz -C village-map
 cd village-map
 
 # 2. 首次部署：创建上传目录（已存在则跳过）
-mkdir -p uploads
+mkdir -p public/uploads
 
 # 3. 给部署脚本执行权限
 chmod +x deploy.sh
 
 # 4. 一键部署
 ./deploy.sh
-
-# 5. 更新 nginx 配置并重载（首次部署或 nginx.conf 有变更时）
-cp nginx.conf /usr/local/nginx/conf/nginx.conf
-nginx -t          # 测试配置语法
-nginx -s reload   # 重载生效
 ```
 
 `deploy.sh` 会自动完成：
@@ -113,18 +74,7 @@ nginx -s reload   # 重载生效
 - 启动新容器（端口 3002，自动重启）
 - 挂载数据卷：
   - `data/` → 容器 `/app/.next/standalone/data`（SQLite 数据库）
-  - `uploads/` → 容器 `/app/.next/standalone/public/uploads`（上传图片）
-
-### 上传图片说明
-
-**重要：** `tar.gz` 包不含 `public/uploads/` 下的图片（属于用户数据，与代码分离）。
-
-- **首次部署**：若需迁移已有图片，在开发机单独 scp 上传：
-  ```bash
-  scp -r public/uploads/* root@服务器IP:/usr/local/nginx/html/village-map/uploads/
-  ```
-- **nginx 直接服务图片**：`nginx.conf` 中 `/village-map/uploads/` 的 location 用 `alias` 直接读取宿主机 `/usr/local/nginx/html/village-map/uploads/` 下的文件，不经过 Next.js 容器，避免反代场景下的 403 问题。
-- **新上传的图片**：通过走访表单上传，由容器写入挂载的 `uploads/` 目录，nginx 自动可读。
+  - `public/uploads/` → 容器 `/app/.next/standalone/public/uploads`（上传图片）
 
 ## 五、验证部署
 
