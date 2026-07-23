@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
-import { getMapConfig } from "@/lib/amap";
+import { getMapSettings, initAMap } from "@/lib/amap";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AMapInstance: any = null;
@@ -92,30 +92,21 @@ export function MapContainer({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    import("@amap/amap-jsapi-loader").then((AMapLoader) => {
-      window._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-      };
-
-      AMapLoader.default.load({
-        key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-        version: "2.0",
-        plugins: [
-          "AMap.Scale",
-          "AMap.Geolocation",
-          "AMap.ControlBar",
-          "AMap.Geocoder",
-          "AMap.Driving",
-          "AMap.Walking",
-          "AMap.Riding",
-        ],
-      })
+    initAMap([
+      "AMap.Scale",
+      "AMap.Geolocation",
+      "AMap.ControlBar",
+      "AMap.Geocoder",
+      "AMap.Driving",
+      "AMap.Walking",
+      "AMap.Riding",
+    ])
         .then((AMap: any) => {
           AMap.getConfig().appname = "amap-jsapi-skill";
           AMapInstance = AMap;
 
           // 初始化时直接定位到当前位置，用用户设置的默认中心作为兜底
-          const { center: savedCenter, zoom: savedZoom } = getMapConfig();
+          const { center: savedCenter, zoom: savedZoom } = getMapSettings();
           const map = new AMap.Map(containerRef.current, {
             viewMode: "2D",
             zoom: savedZoom,
@@ -217,7 +208,7 @@ export function MapContainer({
 
           geolocation.on("error", () => {
             // 定位失败，回退到默认中心
-            map.setCenter(getMapConfig().center);
+            map.setCenter(getMapSettings().center);
             setMapReady(true);
           });
 
@@ -269,7 +260,6 @@ export function MapContainer({
         .catch((e: Error) => {
           console.error("地图加载失败", e);
         });
-    });
 
     return () => {
       if (mapRef.current) {

@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Save, RotateCcw, MapPin, Check } from "lucide-react";
-import {
-  DEFAULT_CENTER,
-  DEFAULT_ZOOM,
-  getMapConfig,
-  saveMapConfig,
-} from "@/lib/amap";
+import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap } from "@/lib/amap";
+import { useToast } from "@/components/ui/Toast";
+import { LocateFixed, Save, MapPin, RotateCcw } from "lucide-react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let AMapInstance: any = null;
-
+/**
+ * 地图默认中心点选点器
+ * - 点击地图选取中心位置
+ * - 支持"使用当前位置"浏览器定位
+ * - 缩放级别滑块
+ * - 保存后通过事件通知地图实时更新
+ */
 export function MapSettingsPicker() {
+  const { toast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
@@ -21,80 +22,87 @@ export function MapSettingsPicker() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geocoderRef = useRef<any>(null);
 
-  // 初始读取已保存的配置（默认值兜底）
-  const initial = getMapConfig();
-  const [lng, setLng] = useState<string>(initial.center[0].toFixed(6));
-  const [lat, setLat] = useState<string>(initial.center[1].toFixed(6));
-  const [address, setAddress] = useState<string>("");
-  const [dirty, setDirty] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [address, setAddress] = useState("");
+  const [locating, setLocating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  // 初始化小地图
+  // 初始化地图
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const settings = getMapSettings();
+    setCenter(settings.center);
+    setZoom(settings.zoom);
+
     let cancelled = false;
 
-    import("@amap/amap-jsapi-loader").then((AMapLoader) => {
-      if (cancelled) return;
-      window._AMapSecurityConfig = {
-        securityJsCode: process.env.NEXT_PUBLIC_AMAP_SECRET!,
-      };
+    initAMap(["AMap.Geocoder", "AMap.Geolocation"])
+      .then((AMap: any) => {
+        if (cancelled) return;
 
-      AMapLoader.default.load({
-        key: process.env.NEXT_PUBLIC_AMAP_KEY!,
-        version: "2.0",
-        plugins: ["AMap.Geocoder"],
-      })
-        .then((AMap: any) => {
-          if (cancelled || !containerRef.current) return;
-          AMapInstance = AMap;
-
-          const cfg = getMapConfig();
-          const map = new AMap.Map(containerRef.current, {
-            viewMode: "2D",
-            zoom: DEFAULT_ZOOM,
-            center: cfg.center,
-            mapStyle: "amap://styles/whitesmoke",
-          });
-          mapRef.current = map;
-
-          // 逆地理编码
-          geocoderRef.current = new AMap.Geocoder({ extensions: "all" });
-
-          // 中心点标记（可拖动）
-          const marker = new AMap.Marker({
-            position: cfg.center,
-            draggable: true,
-            cursor: "move",
-            content: `<div style="position:relative;width:24px;height:24px;">
-              <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#e74c3c;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3);"></div>
-            </div>`,
-            offset: new AMap.Pixel(-12, -12),
-          });
-          marker.on("dragging", (e: any) => {
-            const pos = e.lnglat || marker.getPosition();
-            updatePosition(pos.getLng(), pos.getLat());
-          });
-          map.add(marker);
-          markerRef.current = marker;
-
-          // 点击地图移动标记
-          map.on("click", (e: any) => {
-            const pos = e.lnglat;
-            marker.setPosition(pos);
-            updatePosition(pos.getLng(), pos.getLat());
-          });
-
-          // 首次逆地理编码当前中心
-          reverseGeocode(cfg.center[0], cfg.center[1]);
-          setMapReady(true);
-        })
-        .catch((e: Error) => {
-          console.error("地图加载失败", e);
+        const map = new AMap.Map(containerRef.current, {
+          viewMode: "2D",
+          zoom: settings.zoom,
+          center: settings.center,
+          mapStyle: "amap://styles/whitesmoke",
         });
-    });
+
+        geocoderRef.current = new AMap.Geocoder({ extensions: "all" });
+
+        // 初始标记
+        markerRef.current = new AMap.Marker({
+          position: settings.center,
+          content: `<div style="position:relative;width:36px;height:36px;">
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:#e74c3c;border:4px solid white;box-shadow:0 0 0 3px rgba(231,76,60,.2),0 3px 8px rgba(0,0,0,.25);"></div>
+          </div>`,
+          offset: new AMap.Pixel(-18, -18),
+          draggable: true,
+          cursor: "move",
+        });
+        markerRef.current.setMap(map);
+
+        // 拖动标记结束后更新坐标
+        markerRef.current.on("dragging", () => {
+          const pos = markerRef.current.getPosition();
+          setCenter([pos.getLng(), pos.getLat()]);
+        });
+        markerRef.current.on("dragend", () => {
+          const pos = markerRef.current.getPosition();
+          reverseGeocode(pos.getLng(), pos.getLat());
+        });
+
+        // 点击地图移动标记
+        map.on("click", (e: any) => {
+          const lng = e.lnglat.getLng();
+          const lat = e.lnglat.getLat();
+          markerRef.current.setPosition([lng, lat]);
+          setCenter([lng, lat]);
+          reverseGeocode(lng, lat);
+        });
+
+        mapRef.current = map;
+        setMapReady(true);
+
+        // 初始逆地理编码
+        reverseGeocode(settings.center[0], settings.center[1]);
+      })
+      .catch((e: Error) => {
+        console.error("地图加载失败", e);
+      });
+
+    function reverseGeocode(lng: number, lat: number) {
+      if (!geocoderRef.current) return;
+      geocoderRef.current.getAddress(
+        [lng, lat],
+        (status: string, result: any) => {
+          if (status === "complete" && result.info === "OK") {
+            setAddress(result.regeocode.formattedAddress);
+          }
+        }
+      );
+    }
 
     return () => {
       cancelled = true;
@@ -103,190 +111,128 @@ export function MapSettingsPicker() {
         mapRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 更新坐标并标记为已修改
-  const updatePosition = (newLng: number, newLat: number) => {
-    setLng(newLng.toFixed(6));
-    setLat(newLat.toFixed(6));
-    setDirty(true);
-    setSaved(false);
-    reverseGeocode(newLng, newLat);
+  // 缩放级别变化时同步到地图
+  const handleZoomChange = (value: number) => {
+    setZoom(value);
+    if (mapRef.current) {
+      mapRef.current.setZoom(value);
+    }
   };
 
-  // 逆地理编码
-  const reverseGeocode = (lngVal: number, latVal: number) => {
-    if (!geocoderRef.current) return;
-    geocoderRef.current.getAddress(
-      [lngVal, latVal],
-      (status: string, result: any) => {
-        if (status === "complete" && result?.info === "OK") {
-          setAddress(result.regeocode?.formattedAddress || "");
-        } else {
-          setAddress("");
+  // 使用当前位置
+  const handleLocate = () => {
+    if (!navigator.geolocation) {
+      toast("浏览器不支持定位功能", "error");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        setCenter([lng, lat]);
+        if (mapRef.current && markerRef.current) {
+          mapRef.current.setZoomAndCenter(zoom, [lng, lat]);
+          markerRef.current.setPosition([lng, lat]);
         }
-      }
+        setLocating(false);
+        toast("已定位到当前位置", "success");
+        // 逆地理编码
+        if (geocoderRef.current) {
+          geocoderRef.current.getAddress(
+            [lng, lat],
+            (status: string, result: any) => {
+              if (status === "complete" && result.info === "OK") {
+                setAddress(result.regeocode.formattedAddress);
+              }
+            }
+          );
+        }
+      },
+      (err) => {
+        setLocating(false);
+        toast(`定位失败：${err.message}`, "error");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  // 手动输入坐标后，把标记移到新位置
-  const handleManualInput = () => {
-    const lngNum = parseFloat(lng);
-    const latNum = parseFloat(lat);
-    if (
-      isNaN(lngNum) ||
-      isNaN(latNum) ||
-      lngNum < -180 ||
-      lngNum > 180 ||
-      latNum < -90 ||
-      latNum > 90
-    ) {
-      return;
-    }
-    if (mapRef.current && markerRef.current && AMapInstance) {
-      markerRef.current.setPosition([lngNum, latNum]);
-      mapRef.current.setCenter([lngNum, latNum]);
-      setDirty(true);
-      setSaved(false);
-      reverseGeocode(lngNum, latNum);
-    }
-  };
-
-  // 保存
+  // 保存设置
   const handleSave = () => {
-    const lngNum = parseFloat(lng);
-    const latNum = parseFloat(lat);
-    if (isNaN(lngNum) || isNaN(latNum)) {
-      alert("坐标格式不正确");
-      return;
-    }
-    saveMapConfig({ center: [lngNum, latNum], zoom: DEFAULT_ZOOM });
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    saveMapSettings({ center, zoom });
+    toast("地图设置已保存，地图已同步更新", "success");
   };
 
-  // 重置为默认
+  // 恢复默认
   const handleReset = () => {
-    setLng(DEFAULT_CENTER[0].toFixed(6));
-    setLat(DEFAULT_CENTER[1].toFixed(6));
-    if (mapRef.current && markerRef.current && AMapInstance) {
+    setCenter(DEFAULT_CENTER);
+    setZoom(DEFAULT_ZOOM);
+    if (mapRef.current && markerRef.current) {
+      mapRef.current.setZoomAndCenter(DEFAULT_ZOOM, DEFAULT_CENTER);
       markerRef.current.setPosition(DEFAULT_CENTER);
-      mapRef.current.setCenter(DEFAULT_CENTER);
     }
-    reverseGeocode(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
-    setDirty(true);
-    setSaved(false);
+    saveMapSettings({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+    toast("已恢复默认设置", "success");
   };
 
   return (
-    <div>
-      {/* 内嵌小地图 */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* 地图容器 */}
       <div
-        ref={containerRef}
         style={{
+          position: "relative",
           width: "100%",
-          height: 240,
-          borderRadius: 10,
+          height: 280,
+          borderRadius: 12,
           overflow: "hidden",
-          background: "#eef2e9",
-          marginBottom: 14,
-        }}
-      />
-      {!mapReady && (
-        <div
-          style={{
-            textAlign: "center",
-            color: "#8a95a8",
-            fontSize: 12,
-            marginBottom: 12,
-          }}
-        >
-          地图加载中...
-        </div>
-      )}
-
-      {/* 坐标输入 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          marginBottom: 12,
+          border: "1px solid #e4e8ef",
+          background: "#f0f3f7",
         }}
       >
-        <div>
-          <label
+        <div
+          ref={containerRef}
+          style={{ width: "100%", height: "100%" }}
+        />
+        {!mapReady && (
+          <div
             style={{
-              display: "block",
-              fontSize: 12,
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: "#8a95a8",
-              marginBottom: 4,
+              fontSize: 13,
             }}
           >
-            经度 (lng)
-          </label>
-          <input
-            type="text"
-            value={lng}
-            onChange={(e) => {
-              setLng(e.target.value);
-              setDirty(true);
-              setSaved(false);
-            }}
-            onBlur={handleManualInput}
+            地图加载中...
+          </div>
+        )}
+        {/* 提示条 */}
+        {mapReady && (
+          <div
             style={{
-              width: "100%",
-              padding: "8px 10px",
-              border: "1px solid #e1e7ee",
-              borderRadius: 7,
-              fontSize: 13,
-              outline: "none",
-              color: "#2b405b",
-              background: "#fff",
-              boxSizing: "border-box",
-              fontFamily: "monospace",
-            }}
-          />
-        </div>
-        <div>
-          <label
-            style={{
-              display: "block",
+              position: "absolute",
+              top: 8,
+              left: 8,
+              padding: "4px 10px",
+              borderRadius: 6,
+              background: "rgba(255,255,255,0.92)",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
               fontSize: 12,
-              color: "#8a95a8",
-              marginBottom: 4,
+              color: "#5a6577",
+              fontWeight: 600,
+              pointerEvents: "none",
             }}
           >
-            纬度 (lat)
-          </label>
-          <input
-            type="text"
-            value={lat}
-            onChange={(e) => {
-              setLat(e.target.value);
-              setDirty(true);
-              setSaved(false);
-            }}
-            onBlur={handleManualInput}
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              border: "1px solid #e1e7ee",
-              borderRadius: 7,
-              fontSize: 13,
-              outline: "none",
-              color: "#2b405b",
-              background: "#fff",
-              boxSizing: "border-box",
-              fontFamily: "monospace",
-            }}
-          />
-        </div>
+            点击地图选取中心点，或拖动红色标记
+          </div>
+        )}
       </div>
 
-      {/* 地址 */}
+      {/* 选中地址显示 */}
       {address && (
         <div
           style={{
@@ -294,71 +240,163 @@ export function MapSettingsPicker() {
             alignItems: "center",
             gap: 6,
             padding: "8px 12px",
-            marginBottom: 12,
-            background: "#f9fbfd",
-            borderRadius: 7,
+            borderRadius: 8,
+            background: "#f0f3f7",
             fontSize: 12,
             color: "#5a6577",
           }}
         >
-          <MapPin size={13} color="#2f80ed" />
+          <MapPin size={13} color="#e74c3c" />
           {address}
         </div>
       )}
 
-      {/* 操作提示 */}
+      {/* 坐标显示（只读） */}
       <div
         style={{
+          display: "flex",
+          gap: 12,
           fontSize: 12,
           color: "#8a95a8",
-          marginBottom: 14,
-          lineHeight: 1.5,
         }}
       >
-        点击或拖动地图上的红色标记选择默认中心点，也可手动输入坐标。保存后地图页将以此为中心打开。
+        <span>
+          经度：<b style={{ color: "#2b405b" }}>{center[0].toFixed(6)}</b>
+        </span>
+        <span>
+          纬度：<b style={{ color: "#2b405b" }}>{center[1].toFixed(6)}</b>
+        </span>
       </div>
 
-      {/* 按钮 */}
+      {/* 缩放级别滑块 */}
+      <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 6,
+          }}
+        >
+          <label
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#2b405b",
+            }}
+          >
+            默认缩放级别
+          </label>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#2f80ed",
+              minWidth: 28,
+              textAlign: "right",
+            }}
+          >
+            {zoom}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={3}
+          max={20}
+          step={1}
+          value={zoom}
+          onChange={(e) => handleZoomChange(Number(e.target.value))}
+          style={{ width: "100%", accentColor: "#2f80ed" }}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 10,
+            color: "#b0b8c4",
+            marginTop: 2,
+          }}
+        >
+          <span>省</span>
+          <span>市</span>
+          <span>区</span>
+          <span>街道</span>
+          <span>建筑</span>
+        </div>
+      </div>
+
+      {/* 操作按钮 */}
       <div style={{ display: "flex", gap: 10 }}>
         <button
-          onClick={handleSave}
-          disabled={!dirty}
+          onClick={handleLocate}
+          disabled={locating}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 6,
-            padding: "9px 20px",
-            border: "none",
+            gap: 5,
+            padding: "8px 16px",
+            border: "1px solid #2f80ed",
             borderRadius: 8,
-            background: dirty ? "#2f80ed" : "#c0c8d4",
-            color: "#fff",
+            background: "#fff",
+            color: "#2f80ed",
             fontSize: 13,
             fontWeight: 600,
-            cursor: dirty ? "pointer" : "not-allowed",
+            cursor: locating ? "not-allowed" : "pointer",
+            opacity: locating ? 0.6 : 1,
           }}
         >
-          {saved ? <Check size={15} /> : <Save size={15} />}
-          {saved ? "已保存" : "保存设置"}
+          <LocateFixed size={14} />
+          {locating ? "定位中..." : "当前位置"}
         </button>
         <button
           onClick={handleReset}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 6,
-            padding: "9px 16px",
-            border: "1px solid #e1e7ee",
+            gap: 5,
+            padding: "8px 16px",
+            border: "1px solid #e4e8ef",
             borderRadius: 8,
             background: "#fff",
-            color: "#5a6577",
+            color: "#8a95a8",
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
           }}
         >
-          <RotateCcw size={15} />
-          恢复默认
+          <RotateCcw size={14} />
+          默认
         </button>
+        <button
+          onClick={handleSave}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "8px 20px",
+            border: "none",
+            borderRadius: 8,
+            background: "linear-gradient(135deg, #27ae60, #2f80ed)",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            flex: 1,
+          }}
+        >
+          <Save size={14} />
+          保存设置
+        </button>
+      </div>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: "#8a95a8",
+          lineHeight: 1.6,
+        }}
+      >
+        提示：点击地图选取默认中心点，拖动滑块调整缩放级别。保存后地图首页立即同步更新。
       </div>
     </div>
   );

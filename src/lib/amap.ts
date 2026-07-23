@@ -1,7 +1,31 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let amapPromise: Promise<any> | null = null;
+const loadedPlugins = new Set<string>();
 
-export function initAMap() {
-  if (amapPromise) return amapPromise;
+/**
+ * 统一的 AMap 加载入口，供 MapContainer / MapSettingsPicker / RoutePlan / Topbar 复用
+ * 单例缓存：首次调用加载 SDK + 指定插件；后续调用若请求新插件则动态补加载
+ * @param plugins 需要预加载的插件列表
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function initAMap(plugins: string[] = []): Promise<any> {
+  // 已有实例：检查是否需要补加载新插件
+  if (amapPromise) {
+    const missing = plugins.filter((p) => !loadedPlugins.has(p));
+    if (missing.length === 0) return amapPromise;
+    missing.forEach((p) => loadedPlugins.add(p));
+    // 在 AMap 就绪后通过 AMap.plugin() 动态加载缺失插件
+    amapPromise = amapPromise.then(
+      (AMap) =>
+        new Promise((resolve) => {
+          AMap.plugin(missing, () => resolve(AMap));
+        })
+    );
+    return amapPromise;
+  }
+
+  // 首次调用：记录插件并加载 SDK
+  plugins.forEach((p) => loadedPlugins.add(p));
 
   // 设置安全密钥（必须在加载地图之前）
   if (typeof window !== "undefined") {
@@ -15,59 +39,54 @@ export function initAMap() {
     return mod.default.load({
       key: process.env.NEXT_PUBLIC_AMAP_KEY!,
       version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar"],
+      plugins,
     });
+  }).then((AMap: any) => {
+    // 埋点：设置应用标识（强制）
+    AMap.getConfig().appname = "amap-jsapi-skill";
+    return AMap;
   });
 
   return amapPromise;
 }
 
 // 花园村默认中心点（高德格式 [lng, lat]，6位小数≈0.1米精度）
-// 这是兜底值；用户在「设置」页保存的自定义中心会覆盖它
 export const DEFAULT_CENTER: [number, number] = [114.3425, 30.5218];
 export const DEFAULT_ZOOM = 16;
 
-// localStorage key：用户自定义地图配置
-const MAP_CONFIG_KEY = "mapConfig";
+// ===== 地图设置（localStorage 持久化）=====
 
-export interface MapConfig {
+const STORAGE_KEY = "villagemap-map-settings";
+
+export interface MapSettings {
   center: [number, number];
   zoom: number;
 }
 
-/**
- * 读取用户在设置页保存的地图配置；未保存时返回默认值。
- * 仅在客户端调用，SSR 时返回默认值。
- */
-export function getMapConfig(): MapConfig {
-  if (typeof window === "undefined") {
-    return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
-  }
+/** 读取地图设置，未配置时返回内置默认值 */
+export function getMapSettings(): MapSettings {
+  if (typeof window === "undefined") return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
   try {
-    const raw = localStorage.getItem(MAP_CONFIG_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
-    const parsed = JSON.parse(raw) as Partial<MapConfig>;
-    const center =
-      Array.isArray(parsed.center) &&
-      parsed.center.length === 2 &&
-      Number.isFinite(parsed.center[0]) &&
-      Number.isFinite(parsed.center[1])
-        ? ([Number(parsed.center[0]), Number(parsed.center[1])] as [number, number])
-        : DEFAULT_CENTER;
-    const zoom =
-      typeof parsed.zoom === "number" && Number.isFinite(parsed.zoom)
-        ? parsed.zoom
-        : DEFAULT_ZOOM;
-    return { center, zoom };
+    const parsed = JSON.parse(raw);
+    const lng = Number(parsed?.center?.[0]);
+    const lat = Number(parsed?.center?.[1]);
+    const zoom = Number(parsed?.zoom);
+    return {
+      center:
+        isNaN(lng) || isNaN(lat) ? DEFAULT_CENTER : [lng, lat],
+      zoom: isNaN(zoom) ? DEFAULT_ZOOM : zoom,
+    };
   } catch {
     return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
   }
 }
 
-/** 保存用户自定义地图配置 */
-export function saveMapConfig(config: MapConfig): void {
+/** 保存地图设置 */
+export function saveMapSettings(settings: MapSettings): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(MAP_CONFIG_KEY, JSON.stringify(config));
-  // 通知其他已打开的页面（如地图页）刷新配置
-  window.dispatchEvent(new CustomEvent("map-config-changed"));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  // 通知其他组件（如地图页）设置已更新
+  window.dispatchEvent(new CustomEvent("map-settings-changed"));
 }
