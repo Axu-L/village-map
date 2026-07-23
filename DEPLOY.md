@@ -12,7 +12,9 @@
 
 ## 二、打包说明（开发机执行）
 
-在项目根目录执行：
+提供两种打包方式，根据需要选择：
+
+### 方式 A：含数据库（首次部署用）
 
 ```bash
 tar -czf village-map.tar.gz . \
@@ -37,7 +39,39 @@ tar -czf village-map.tar.gz . \
 
 **已排除：** `node_modules`、`.next`、`.env.local`（含密钥）、`uploads/*`、`.git`、`.trae`、`*.log`
 
-> **注意：** `data/app.db` 已包含在压缩包内，**无需单独上传数据库**。部署脚本会自动挂载到容器。
+> **适用场景：** 首次部署，或需要重置数据库时使用。更新部署时**不要用这个包**，会覆盖线上数据库。
+
+### 方式 B：不含数据库（更新部署用，推荐）
+
+```bash
+tar -czf village-map.tar.gz . \
+  --exclude='node_modules' \
+  --exclude='.next' \
+  --exclude='.trae' \
+  --exclude='.git' \
+  --exclude='village-map.tar.gz' \
+  --exclude='village-map*.zip' \
+  --exclude='.env.local' \
+  --exclude='public/uploads/*' \
+  --exclude='data' \
+  --exclude='*.log' \
+  --exclude='tsconfig.tsbuildinfo'
+```
+
+**比方式 A 多排除：** `data`（数据库目录）
+
+> **适用场景：** 日常更新部署。解压不会覆盖线上数据库和上传图片，数据安全。
+
+### 两种方式对比
+
+| 项 | 方式 A（含数据库） | 方式 B（不含数据库） |
+|---|---|---|
+| `data/app.db` | 包含 | 不包含 |
+| 首次部署 | 可用 | 可用（容器启动自动建表，但无初始数据） |
+| 更新部署 | 会覆盖线上数据库 | 不覆盖，数据安全 |
+| 推荐用途 | 首次部署 / 数据库重置 | 日常更新（推荐） |
+
+> **建议：** 首次部署用方式 A，后续更新都用方式 B。
 
 ## 三、上传到服务器
 
