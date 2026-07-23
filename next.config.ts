@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
+  // dev 模式下允许预览沙箱域名访问 HMR 资源，否则前端 JS 无法加载
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "localhost",
+    "*.agent-sandbox-bj-a2-gw.traecontent.cn",
+  ],
 };
 
 export default nextConfig;
