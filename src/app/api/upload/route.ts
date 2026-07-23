@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return Response.json({ message: "请选择文件" }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

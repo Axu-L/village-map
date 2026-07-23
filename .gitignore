@@ -23,3 +23,6 @@ next-env.d.ts
 
 # deploy artifacts (zip only)
 village-map-deploy.zip
+
+# local sqlite database
+/data/
