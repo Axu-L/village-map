@@ -199,13 +199,7 @@ export default function PeoplePage() {
       </div>
 
       {/* Card grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16,
-        }}
-      >
+      <div className="people-grid">
         {filtered.map((h) => {
           const tags = Array.isArray(h.tags) ? h.tags : [];
           return (
@@ -405,20 +399,6 @@ export default function PeoplePage() {
           initialData={editing}
         />
       )}
-
-      {/* Responsive overrides via media query — inline media queries are not possible, so we add a style tag */}
-      <style>{`
-        @media (max-width: 900px) {
-          div[style*="grid-template-columns: repeat(3"] {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        @media (max-width: 600px) {
-          div[style*="grid-template-columns: repeat(3"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -98,13 +98,7 @@ export default function TransferPage() {
         导入导出
       </h1>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 20,
-        }}
-      >
+      <div className="transfer-grid-custom">
         {/* Export Card */}
         <div
           style={{
@@ -236,14 +230,6 @@ export default function TransferPage() {
         </div>
       </div>
 
-      {/* Responsive: stack on mobile */}
-      <style>{`
-        @media (max-width: 600px) {
-          div[style*="grid-template-columns: 1fr 1fr"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

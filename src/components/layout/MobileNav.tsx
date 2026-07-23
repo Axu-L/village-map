@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { BarChart3, Home, Menu, Plus, Users } from "lucide-react";
 
@@ -14,6 +14,18 @@ const mobileNavItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const isActive = (href: string) => {
+    const [path, query] = href.split("?");
+    if (pathname !== path) return false;
+    if (!query) return true;
+    const params = new URLSearchParams(query);
+    for (const [key, value] of params.entries()) {
+      if (searchParams.get(key) !== value) return false;
+    }
+    return true;
+  };
 
   return (
     <nav className="mobile-nav" aria-label="移动端导航">
@@ -21,7 +33,7 @@ export function MobileNav() {
         <Link
           key={label}
           href={href}
-          className={isAdd ? "mobile-add" : pathname === href ? "active" : ""}
+          className={isAdd ? "mobile-add" : isActive(href) ? "active" : ""}
         >
           <Icon size={20} />
           <span>{label}</span>

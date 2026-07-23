@@ -81,7 +81,7 @@ export default function HouseholdDetailPage({
   }
 
   return (
-    <div style={{ padding: "20px 24px", maxWidth: 720, margin: "0 auto" }}>
+    <div className="household-detail-page">
       {/* Back button */}
       <Link
         href="/map"
@@ -101,15 +101,7 @@ export default function HouseholdDetailPage({
       </Link>
 
       {/* Hero section */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 14,
-          padding: "20px 24px",
-          marginBottom: 20,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-        }}
-      >
+      <div className="detail-hero-card">
         <h1
           style={{
             fontSize: 22,
@@ -184,13 +176,7 @@ export default function HouseholdDetailPage({
             boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
           }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "16px 24px",
-            }}
-          >
+          <div className="detail-info-grid">
             <InfoItem icon={<User size={15} />} label="户主" value={household.headName} />
             <InfoItem icon={<Phone size={15} />} label="电话" value={maskPhone(household.phone)} />
             <InfoItem icon={<MapPin size={15} />} label="地址" value={household.address} />
@@ -305,7 +291,7 @@ export default function HouseholdDetailPage({
                       {m.age != null ? ` · ${m.age}岁` : ""}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  <div className="member-tags">
                     {m.tags.map((tag) => (
                       <TagBadge key={tag} tag={tag} />
                     ))}
@@ -442,13 +428,7 @@ export default function HouseholdDetailPage({
       )}
 
       {activeTab === "图片" && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 10,
-          }}
-        >
+        <div className="detail-photo-grid">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
@@ -587,17 +567,7 @@ function AddMemberModal({
       }}
       onClick={onClose}
     >
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          padding: "24px 28px",
-          width: 420,
-          maxWidth: "90vw",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-        }}
+      <div className="member-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div

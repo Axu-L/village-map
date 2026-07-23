@@ -109,14 +109,7 @@ export default function StatisticsPage() {
       </h1>
 
       {/* Top row: 4 stat cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 28,
-        }}
-      >
+      <div className="stat-grid-custom">
         <StatCard
           icon={<Users size={20} />}
           label="重点户总数"
@@ -210,13 +203,7 @@ export default function StatisticsPage() {
       </div>
 
       {/* Two-column: Pie chart + Trend */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-        }}
-      >
+      <div className="analytics-grid-custom">
         {/* Pie chart */}
         <div
           style={{
