@@ -26,7 +26,9 @@ const nextConfig: NextConfig = {
     "127.0.0.1",
     "localhost",
     "*.agent-sandbox-bj-d3-gw.trae.cn",
+    "*.agent-sandbox-bj-c1-gw.traecontent.cn",
     "*.trae.cn",
+    "*.traecontent.cn",
   ],
   // 安全响应头：全局基础防护 + 上传照片 noindex
   async headers() {
