@@ -81,6 +81,9 @@ export function MapContainer({
   const placeSearchRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tempMarkerRef = useRef<any>(null);
+  // 村庄中心（默认位置）地标标记 —— 持久存在，不被住户标记清除逻辑影响
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const villageMarkerRef = useRef<any>(null);
   // 卫星图层和路网图层引用（用于地图类型切换）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const satelliteLayerRef = useRef<any>(null);
@@ -153,6 +156,25 @@ export function MapContainer({
               showControlButton: true,
             })
           );
+
+          // 村庄中心（默认位置）特殊地标标记 —— 持久存在，作为地图参考点
+          // 与住户标记区分：青绿色圆形 + 房屋图标 + “花园村村委会”标签
+          const villageCenter = userCenter;
+          const villageMarker = new AMap.Marker({
+            position: villageCenter,
+            content: `
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;pointer-events:none;">
+                <div style="padding:2px 8px;border-radius:6px;background:white;color:#0F766E;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.15);white-space:nowrap;margin-bottom:4px;">花园村村委会</div>
+                <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#0EA5A4,#10B981);border:3px solid white;box-shadow:0 4px 12px rgba(13,148,136,.45);display:grid;place-items:center;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+                </div>
+              </div>
+            `,
+            offset: new AMap.Pixel(-19, -38),
+            zIndex: 1,
+          });
+          villageMarker.setMap(map);
+          villageMarkerRef.current = villageMarker;
 
           // 初始化逆地理编码
           geocoderRef.current = new AMap.Geocoder({
@@ -310,6 +332,10 @@ export function MapContainer({
       if (tempMarkerRef.current) {
         tempMarkerRef.current.setMap(null);
         tempMarkerRef.current = null;
+      }
+      if (villageMarkerRef.current) {
+        villageMarkerRef.current.setMap(null);
+        villageMarkerRef.current = null;
       }
       if (mapRef.current) {
         mapRef.current.destroy();
