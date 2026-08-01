@@ -90,3 +90,45 @@ export function saveMapSettings(settings: MapSettings): void {
   // 通知其他组件（如地图页）设置已更新
   window.dispatchEvent(new CustomEvent("map-settings-changed"));
 }
+
+/**
+ * 强制修正高德 logo / 版权 / 比例尺位置
+ * 高德 SDK 运行时注入的 <style> 会覆盖 globals.css 的 !important 规则，
+ * 这里用内联 style（优先级最高）兜底，确保控件锚定到容器左下角，且互不重叠。
+ * 所有创建 AMap.Map 的组件（MapContainer / MapSettingsPicker 等）都应在地图初始化后调用。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function fixAmapControls(map: any): void {
+  if (typeof document === "undefined" || !map) return;
+  // map.getContainer() 返回地图根容器
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const root: HTMLElement | null = map.getContainer?.() as any;
+  if (!root) return;
+  const apply = (sel: string, props: Record<string, string>) => {
+    const el = root.querySelector(sel) as HTMLElement | null;
+    if (!el) return;
+    Object.entries(props).forEach(([k, v]) =>
+      el.style.setProperty(k, v, "important")
+    );
+  };
+  apply(".amap-logo", {
+    left: "6px",
+    bottom: "2px",
+    right: "auto",
+    top: "auto",
+    "z-index": "2",
+  });
+  apply(".amap-copyright", {
+    right: "6px",
+    bottom: "2px",
+    left: "auto",
+    top: "auto",
+    "z-index": "2",
+  });
+  apply(".amap-scalecontrol", {
+    left: "6px",
+    bottom: "30px",
+    top: "auto",
+    "z-index": "2",
+  });
+}

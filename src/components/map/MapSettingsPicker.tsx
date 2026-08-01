@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap } from "@/lib/amap";
+import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap, fixAmapControls } from "@/lib/amap";
 import { useToast } from "@/components/ui/Toast";
 import { LocateFixed, Save, MapPin, RotateCcw } from "lucide-react";
 
@@ -84,6 +84,10 @@ export function MapSettingsPicker() {
 
         mapRef.current = map;
         setMapReady(true);
+
+        // 强制修正高德 logo / 版权 / 比例尺位置（SDK 注入的样式会覆盖 CSS !important）
+        requestAnimationFrame(() => fixAmapControls(map));
+        map.on("complete", () => fixAmapControls(map));
 
         // 初始逆地理编码
         reverseGeocode(settings.center[0], settings.center[1]);
