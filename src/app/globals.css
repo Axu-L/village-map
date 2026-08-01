@@ -1641,21 +1641,33 @@ select:focus-visible {
 }
 
 /* ──────────────────── AMap 控件位置（logo / 版权 / 比例尺）──────────────────── */
-/* logo 左下角，版权右下角，比例尺上移避免与 logo 重叠 */
+/* 高德 logo 默认 bottom:0 但定位锚点在 .amap-maps，不同容器下会偏移。
+   强制锚定到容器最底部，并处理内联 style 覆盖 */
+.amap-container .amap-logo,
 .amap-logo {
-  left: 8px !important;
-  bottom: 4px !important;
-  z-index: 1 !important;
+  position: absolute !important;
+  left: 6px !important;
+  right: auto !important;
+  bottom: 2px !important;
+  top: auto !important;
+  z-index: 2 !important;
 }
+.amap-container .amap-copyright,
 .amap-copyright {
-  right: 8px !important;
-  bottom: 4px !important;
-  z-index: 1 !important;
+  position: absolute !important;
+  right: 6px !important;
+  left: auto !important;
+  bottom: 2px !important;
+  top: auto !important;
+  z-index: 2 !important;
 }
+.amap-container .amap-scalecontrol,
 .amap-scalecontrol {
-  left: 8px !important;
-  bottom: 28px !important;
-  z-index: 1 !important;
+  position: absolute !important;
+  left: 6px !important;
+  bottom: 30px !important;
+  top: auto !important;
+  z-index: 2 !important;
 }
 
 /* ──────────────────── Modal Layer ──────────────────── */
@@ -2922,17 +2934,23 @@ select:focus-visible {
   }
 
   /* 高德地图 logo / 版权 / 比例尺上移，避免被底部 tab 栏（62px）遮挡，且互不重叠 */
+  .amap-container .amap-logo,
   .amap-logo {
-    left: 8px !important;
+    left: 6px !important;
     bottom: 66px !important;
+    top: auto !important;
   }
+  .amap-container .amap-copyright,
   .amap-copyright {
-    right: 8px !important;
+    right: 6px !important;
     bottom: 66px !important;
+    top: auto !important;
   }
+  .amap-container .amap-scalecontrol,
   .amap-scalecontrol {
-    left: 8px !important;
+    left: 6px !important;
     bottom: 90px !important;
+    top: auto !important;
   }
 
   /* ========== 统计页面移动端布局 ========== */
