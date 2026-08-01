@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, Users, Home, Trash2, Pencil } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
-import { allTags, getTagColor } from "@/lib/tags";
+import { allTags, getTagColor, tagIconMap } from "@/lib/tags";
 import { maskPhone } from "@/lib/utils";
 import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { useToast } from "@/components/ui/Toast";
@@ -170,6 +170,9 @@ export default function PeoplePage() {
         <button
           onClick={() => setActiveTag(null)}
           style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
             padding: "4px 12px",
             borderRadius: 8,
             fontSize: 12,
@@ -181,25 +184,80 @@ export default function PeoplePage() {
           }}
         >
           全部
-        </button>
-        {allTags.map((tag) => (
-          <button
-            key={tag}
-            onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+          <span
             style={{
-              padding: "4px 12px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 600,
-              border: activeTag === tag ? `2px solid ${getTagColor(tag)}` : "1px solid #e4e8ef",
-              background: activeTag === tag ? `${getTagColor(tag)}15` : "#fff",
-              color: activeTag === tag ? getTagColor(tag) : "#8a95a8",
-              cursor: "pointer",
+              minWidth: 18,
+              height: 18,
+              padding: "0 5px",
+              borderRadius: 9,
+              background: activeTag === null ? "#2f80ed" : "#eef1f5",
+              color: activeTag === null ? "#fff" : "#8a95a8",
+              fontSize: 11,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1,
             }}
           >
-            {tag}
-          </button>
-        ))}
+            {households.length}
+          </span>
+        </button>
+        {allTags.map((tag) => {
+          const count = households.filter((h) =>
+            (Array.isArray(h.tags) ? h.tags : []).includes(tag)
+          ).length;
+          const color = getTagColor(tag);
+          const active = activeTag === tag;
+          return (
+            <button
+              key={tag}
+              onClick={() => setActiveTag(active ? null : tag)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 12px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                border: active ? `2px solid ${color}` : "1px solid #e4e8ef",
+                background: active ? `${color}15` : "#fff",
+                color: active ? color : "#8a95a8",
+                cursor: "pointer",
+              }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style={{ flexShrink: 0 }}
+              >
+                <path d={tagIconMap[tag]} />
+              </svg>
+              {tag}
+              <span
+                style={{
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 5px",
+                  borderRadius: 9,
+                  background: active ? color : "#eef1f5",
+                  color: active ? "#fff" : "#8a95a8",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Card grid */}
