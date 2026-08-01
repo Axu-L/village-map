@@ -77,10 +77,12 @@ export function NavMap({
       setMapReady(true);
 
       // 隐藏定位控件默认按钮，用自定义逻辑触发
+      // zoomToAccuracy 关闭：走访模式下定位只用于到达检测，
+      // 不应自动缩放地图到精度圆，否则会覆盖 setFitView 设置的完整路线视野
       const geolocation = new AMap.Geolocation({
         enableHighAccuracy: true,
         timeout: GEOLOCATION_INTERVAL,
-        zoomToAccuracy: true,
+        zoomToAccuracy: false,
         GeoLocationFirst: true,
         showButton: false,
         showMarker: true,
@@ -141,7 +143,7 @@ export function NavMap({
       if (!AMap || !geo) return;
 
       let resolved = false;
-      const useDefault = () => {
+      const fallbackDefault = () => {
         if (resolved) return;
         resolved = true;
         setLocating(false);
@@ -149,7 +151,7 @@ export function NavMap({
       };
 
       // iOS 非安全上下文兜底：6 秒后回退默认位置
-      const timer = setTimeout(useDefault, 6000);
+      const timer = setTimeout(fallbackDefault, 6000);
 
       geo.getCurrentPosition();
       geo.on("complete", (data: { position: { getLng: () => number; getLat: () => number } }) => {
@@ -163,7 +165,7 @@ export function NavMap({
       });
       geo.on("error", () => {
         clearTimeout(timer);
-        useDefault();
+        fallbackDefault();
       });
     }
 
@@ -247,7 +249,9 @@ export function NavMap({
           mainLine.setMap(map);
           routeLayerRef.current.push(mainLine);
 
-          map.setFitView([mainLine], false, [80, 80, 120, 80]);
+          // fitView 纳入路线 + 起终点标记，立即生效（无动画），
+          // 避免动画期间被走访定位等异步操作干扰视野
+          map.setFitView([mainLine, startMarker, endMarker], true, [80, 80, 120, 80]);
         }
 
         const distance =
