@@ -184,7 +184,7 @@ export function MapSettingsPicker() {
         style={{
           position: "relative",
           width: "100%",
-          height: 280,
+          height: 320,
           borderRadius: 12,
           overflow: "hidden",
           border: "1px solid #e4e8ef",
