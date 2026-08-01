@@ -44,8 +44,8 @@ export default function StatisticsPage() {
   // Compute stats
   const totalHouseholds = households.length;
   const safeTags = (h: Household) => Array.isArray(h.tags) ? h.tags : [];
-  const tuopinCount = households.filter((h) => safeTags(h).includes("脱贫户")).length;
-  const jianceCount = households.filter((h) => safeTags(h).includes("监测户")).length;
+  const tuopinCount = households.filter((h) => safeTags(h).includes("帮扶")).length;
+  const jianceCount = households.filter((h) => safeTags(h).includes("三留守")).length;
   const dujuCount = households.filter((h) => safeTags(h).includes("独居老人")).length;
 
   // Per-group household counts
@@ -124,15 +124,15 @@ export default function StatisticsPage() {
         />
         <StatCard
           icon={<Heart size={20} />}
-          label="脱贫户"
+          label="帮扶"
           value={tuopinCount}
           color="#27AE60"
         />
         <StatCard
           icon={<AlertTriangle size={20} />}
-          label="监测户"
+          label="三留守"
           value={jianceCount}
-          color="#F2994A"
+          color="#E67E22"
         />
         <StatCard
           icon={<Users size={20} />}

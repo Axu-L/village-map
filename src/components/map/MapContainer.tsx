@@ -407,8 +407,8 @@ export function MapContainer({
       const isSelected = selectedId === family.id;
       const tagCount = tags.length;
 
-      const firstTag = tags[0] || "脱贫户";
-      const iconPath = tagIconMap[firstTag] || tagIconMap["脱贫户"];
+      const firstTag = tags[0] || "帮扶";
+      const iconPath = tagIconMap[firstTag] || tagIconMap["帮扶"];
 
       const markerContent = `
         <div style="position:relative;cursor:pointer;" class="${isSelected ? "marker-selected" : ""}">

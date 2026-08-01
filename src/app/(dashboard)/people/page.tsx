@@ -165,8 +165,20 @@ export default function PeoplePage() {
         />
       </div>
 
-      {/* Tag filter buttons */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+      {/* Tag filter buttons — 横向可滑动一栏 */}
+      <div
+        className="people-tag-scroller"
+        style={{
+          display: "flex",
+          flexWrap: "nowrap",
+          gap: 8,
+          marginBottom: 20,
+          overflowX: "auto",
+          overflowY: "hidden",
+          paddingBottom: 6,
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         <button
           onClick={() => setActiveTag(null)}
           style={{
@@ -181,6 +193,8 @@ export default function PeoplePage() {
             background: activeTag === null ? "#2f80ed15" : "#fff",
             color: activeTag === null ? "#2f80ed" : "#8a95a8",
             cursor: "pointer",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
           }}
         >
           全部
@@ -225,6 +239,8 @@ export default function PeoplePage() {
                 background: active ? `${color}15` : "#fff",
                 color: active ? color : "#8a95a8",
                 cursor: "pointer",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
               <svg
@@ -496,6 +512,8 @@ export default function PeoplePage() {
         .people-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important; }
         .people-btn-edit:hover { background: rgba(47,128,237,0.18) !important; }
         .people-btn-delete:hover { background: rgba(235,87,87,0.18) !important; }
+        .people-tag-scroller { scrollbar-width: none; -ms-overflow-style: none; }
+        .people-tag-scroller::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );
