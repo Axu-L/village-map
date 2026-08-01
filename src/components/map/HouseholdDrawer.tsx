@@ -28,6 +28,7 @@ export function HouseholdDrawer({
 }: HouseholdDrawerProps) {
   return (
     <div className="drawer open">
+      <div className="drawer-grabber" />
       <div className="drawer-header">
         <div>
           <h3 className="drawer-title">{household.householdName}</h3>

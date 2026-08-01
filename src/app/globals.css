@@ -1435,6 +1435,24 @@ select:focus-visible {
   letter-spacing: 0.1em;
 }
 
+/* ──────────────────── AMap 控件位置（logo / 版权 / 比例尺）──────────────────── */
+/* logo 左下角，版权右下角，比例尺上移避免与 logo 重叠 */
+.amap-logo {
+  left: 8px !important;
+  bottom: 4px !important;
+  z-index: 1 !important;
+}
+.amap-copyright {
+  right: 8px !important;
+  bottom: 4px !important;
+  z-index: 1 !important;
+}
+.amap-scalecontrol {
+  left: 8px !important;
+  bottom: 28px !important;
+  z-index: 1 !important;
+}
+
 /* ──────────────────── Modal Layer ──────────────────── */
 .modal-layer {
   position: fixed;
@@ -2698,14 +2716,18 @@ select:focus-visible {
     display: none;
   }
 
-  /* 高德地图 logo / 版权 / 比例尺等控件上移，避免被底部 tab 栏（62px）遮挡 */
-  .amap-logo,
+  /* 高德地图 logo / 版权 / 比例尺上移，避免被底部 tab 栏（62px）遮挡，且互不重叠 */
+  .amap-logo {
+    left: 8px !important;
+    bottom: 66px !important;
+  }
   .amap-copyright {
-    bottom: 62px !important;
-    z-index: 1 !important;
+    right: 8px !important;
+    bottom: 66px !important;
   }
   .amap-scalecontrol {
-    bottom: 62px !important;
+    left: 8px !important;
+    bottom: 90px !important;
   }
 
   /* ========== 统计页面移动端布局 ========== */

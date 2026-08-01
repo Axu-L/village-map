@@ -29,6 +29,18 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
   // 使用 AMap 定位获取当前位置（与地图坐标系一致 GCJ02）
   useEffect(() => {
     let cancelled = false;
+    let resolved = false;
+
+    const useDefault = () => {
+      if (cancelled || resolved) return;
+      resolved = true;
+      setCurrentPos({ lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] });
+      setCurrentAddress("花园村（默认位置）");
+    };
+
+    // 兜底定时器：iOS Safari 非安全上下文（HTTP）下 AMap.Geolocation 回调可能永不触发，
+    // 导致永远卡在"定位中..."。6 秒后强制回退到默认位置。
+    const fallbackTimer = setTimeout(useDefault, 6000);
 
     initAMap(["AMap.Geocoder", "AMap.Geolocation"])
       .then((AMap: any) => {
@@ -45,8 +57,10 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
         });
 
         geolocation.getCurrentPosition((status: string, result: any) => {
-          if (cancelled) return;
+          if (cancelled || resolved) return;
           if (status === "complete") {
+            resolved = true;
+            clearTimeout(fallbackTimer);
             const lng = result.position.getLng();
             const lat = result.position.getLat();
             setCurrentPos({ lng, lat });
@@ -62,19 +76,18 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
             });
           } else {
             // 定位失败，使用默认位置
-            setCurrentPos({ lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] });
-            setCurrentAddress("花园村（默认位置）");
+            clearTimeout(fallbackTimer);
+            useDefault();
           }
         });
       })
       .catch(() => {
-        if (cancelled) return;
-        setCurrentPos({ lng: DEFAULT_CENTER[0], lat: DEFAULT_CENTER[1] });
-        setCurrentAddress("花园村（默认位置）");
+        useDefault();
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(fallbackTimer);
     };
   }, []);
 
