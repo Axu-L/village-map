@@ -59,3 +59,22 @@ export type User = {
   displayName: string;
   role: string;
 };
+
+// 导航路线参数（地图页 → 导航页传递）
+// origin 为 null 时，导航页会自行定位获取起点（iOS 非安全上下文下回退默认位置）
+export type NavRouteParams = {
+  origin: [number, number] | null;
+  destination: [number, number];
+  waypoints?: [number, number][];
+  mode: "driving" | "walking" | "riding";
+  voiceEnabled?: boolean;
+  visitCount?: number;
+};
+
+// 导航路线信息（路线规划完成后回传给抽屉展示）
+export type NavRouteInfo = {
+  distance: string;
+  time: string;
+  steps: string[];
+  households: Household[];
+};

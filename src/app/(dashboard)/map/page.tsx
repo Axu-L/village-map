@@ -8,13 +8,14 @@ import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { VisitForm } from "@/components/visit/VisitForm";
 import { RoutePlan } from "@/components/map/RoutePlan";
 import { useToast } from "@/components/ui/Toast";
-import type { Household, Tag, Visit } from "@/types";
+import type { Household, NavRouteParams, Tag, Visit } from "@/types";
 import { assetUrl, apiFetch } from "@/lib/api";
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 function MapPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { toast } = useToast();
 
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -186,20 +187,48 @@ function MapPageContent() {
       toast("该住户未设置位置信息", "error");
       return;
     }
-    const name = encodeURIComponent(family.householdName);
-    window.open(
-      `https://uri.amap.com/navigation?to=${lng},${lat},${name}`,
-      "_blank"
+    // 单户导航：起点留空，由导航页定位获取
+    const navParams: NavRouteParams = {
+      origin: null,
+      destination: [lng, lat],
+      mode: "driving",
+      voiceEnabled: true,
+      visitCount: 1,
+    };
+    sessionStorage.setItem(
+      "villagemap-nav-plan",
+      JSON.stringify({
+        params: navParams,
+        households: [family],
+        visitMode: false,
+        voiceEnabled: true,
+      })
     );
+    setSelected(null);
+    router.push("/nav");
   };
 
   const handleRoutePlan = (params: RoutePlanParams, count: number, selectedHouseholds: Household[]) => {
-    setRoutePlan(params);
-    setRouteCount(count);
-    setRouteHouseholds(selectedHouseholds);
+    // 多户走访导航：写入 sessionStorage 后跳转独立导航页
+    const navParams: NavRouteParams = {
+      origin: params.origin,
+      destination: params.destination,
+      waypoints: params.waypoints,
+      mode: params.mode,
+      voiceEnabled: params.voiceEnabled,
+      visitCount: params.visitCount,
+    };
+    sessionStorage.setItem(
+      "villagemap-nav-plan",
+      JSON.stringify({
+        params: navParams,
+        households: selectedHouseholds,
+        visitMode: true,
+        voiceEnabled: params.voiceEnabled,
+      })
+    );
     setShowRoute(false);
-    // 进入走访模式，到达住户附近自动弹窗
-    setVisitMode(true);
+    router.push("/nav");
   };
 
   // 到达住户附近自动弹出走访弹窗
