@@ -32,6 +32,7 @@ export function NavSheet({
 }: NavSheetProps) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("half");
+  const [dragging, setDragging] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({
     startY: 0,
@@ -61,6 +62,14 @@ export function NavSheet({
     );
   }, [stage]);
 
+  // 拖拽进行中通知 NavMap 禁用地图触摸，避免拖抽屉时下方地图跟着滑动。
+  // 同步派发（不等 React 渲染），确保首帧 touchmove 时地图已被禁用。
+  const notifyDrag = (dragging: boolean) => {
+    window.dispatchEvent(
+      new CustomEvent("nav-sheet-drag", { detail: { dragging } })
+    );
+  };
+
   // 嵌套滚动手势仲裁：
   // - 在内容区向下拖动时，若已滚动到顶部（scrollTop===0），则把拖动让给抽屉收起
   // - 在内容区向上拖动时，若已滚动到底部，则把拖动让给抽屉展开
@@ -71,6 +80,8 @@ export function NavSheet({
       dragging: true,
       moved: false,
     };
+    setDragging(true);
+    notifyDrag(true);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
@@ -90,6 +101,8 @@ export function NavSheet({
     if (!dragState.current.dragging) return;
     const dy = (e.changedTouches[0]?.clientY ?? dragState.current.startY) - dragState.current.startY;
     dragState.current.dragging = false;
+    setDragging(false);
+    notifyDrag(false);
 
     if (!dragState.current.moved) return;
     const threshold = 30;
@@ -108,7 +121,7 @@ export function NavSheet({
   const modeLabel = mode === "driving" ? "驾车" : mode === "walking" ? "步行" : "骑行";
 
   return (
-    <div className={`nav-sheet stage-${stage}`} data-stage={stage}>
+    <div className={`nav-sheet stage-${stage}${dragging ? " dragging" : ""}`} data-stage={stage}>
       {/* 拖拽把手 + 摘要（peek 始终可见） */}
       <div
         className="nav-sheet-header"

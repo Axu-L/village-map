@@ -29,8 +29,9 @@ export function NavMap({
   const routeLayerRef = useRef<{ setMap?: (m: null) => void; hide?: () => void }[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const routePlannerRef = useRef<any>(null);
+  // 手动定位标记（替代 AMap.Geolocation 控件，避免控件自动移动地图覆盖 fitView）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const geolocationRef = useRef<any>(null);
+  const locMarkerRef = useRef<any>(null);
   const visitWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const visitedIdsRef = useRef<Set<number>>(new Set());
   const onRouteInfoRef = useRef(onRouteInfo);
@@ -48,26 +49,125 @@ export function NavMap({
 
   /**
    * 按抽屉档位重算路线视野，使路线落在「未被抽屉遮挡的可见区域」居中。
-   * 各档位下方 padding 取抽屉实际高度，顶部留 80px 避开状态栏。
+   * 弃用 setFitView（在本地图实例上调用无效，zoom 不变），改用手动计算：
+   * 1. 由起终点经纬度跨度 + 可见区像素尺寸，反推合适的 zoom；
+   * 2. setZoomAndCenter 把路线几何中心放到地图容器中心；
+   * 3. panBy 平移，使路线中心对齐「可见区中心」（避开底部抽屉）。
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fitRouteView = (stage?: string) => {
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // moveend 一次性监听器句柄，避免重复绑定
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const moveEndHandlerRef = useRef<any>(null);
+
+  /**
+   * 按抽屉档位重算路线视野，使路线落在「未被抽屉遮挡的可见区域」居中。
+   *
+   * 关键点：setZoom / setCenter 是异步动画，立即调用 lngLatToContainer / panBy
+   * 会读到动画前的旧坐标，导致偏移量错误。这里改用：
+   * 1. setZoomAndCenter 一次性设置 zoom + center，让路线几何中心落到地图容器中心；
+   * 2. 监听 moveend（动画结束）后再 panBy，把路线中心从「容器中心」平移到「可见区中心」。
+   */
+  const applyFitView = (stage?: string) => {
     const map = mapRef.current;
     const overlays = lastRouteOverlaysRef.current;
     if (!map || overlays.length === 0) return;
-    const top = 80;
-    let bottom = 150; // peek 档位默认
-    if (stage === "half") {
-      bottom = Math.round(window.innerHeight * 0.5) + 20;
+
+    const positions = overlays
+      .map((o: any) => {
+        try {
+          const p = o.getPosition?.();
+          return p ? [p.getLng(), p.getLat()] : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as [number, number][];
+    if (positions.length === 0) return;
+
+    let sheetHeight: number;
+    if (stage === "peek") {
+      sheetHeight = 150;
     } else if (stage === "full") {
-      bottom = Math.round(window.innerHeight * 0.92) + 20;
-    } else if (stage === "peek") {
-      bottom = 150;
+      sheetHeight = Math.round(window.innerHeight * 0.92);
     } else {
-      // 未指定档位（首次进入）：按抽屉初始档位 half 计算
-      bottom = Math.round(window.innerHeight * 0.5) + 20;
+      sheetHeight = Math.round(window.innerHeight * 0.5);
     }
-    map.setFitView(overlays, true, [80, 80, bottom, top]);
+    const mapSize = map.getSize();
+    const mapW = mapSize?.width || window.innerWidth;
+    const mapH = mapSize?.height || window.innerHeight;
+    const visibleH = Math.max(120, mapH - sheetHeight);
+    const visibleCenterY = visibleH / 2;
+
+    const lngs = positions.map((p) => p[0]);
+    const lats = positions.map((p) => p[1]);
+    const minLng = Math.min(...lngs),
+      maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats),
+      maxLat = Math.max(...lats);
+    const spanLng = maxLng - minLng;
+    const spanLat = maxLat - minLat;
+    const lngC = (minLng + maxLng) / 2;
+    const latC = (minLat + maxLat) / 2;
+
+    const availW = mapW - 120;
+    const availH = visibleH - 120;
+    const latRad = (latC * Math.PI) / 180;
+    const mPerDegLng = 111320 * Math.cos(latRad);
+    const mPerDegLat = 110540;
+    let zoom = 18;
+    for (let z = 18; z >= 3; z--) {
+      const mpp = (156543.03392 * Math.cos(latRad)) / Math.pow(2, z);
+      const pxLng = ((spanLng || 0.001) * mPerDegLng) / mpp;
+      const pxLat = ((spanLat || 0.001) * mPerDegLat) / mpp;
+      if (pxLng <= availW && pxLat <= availH) {
+        zoom = z;
+        break;
+      }
+    }
+
+    // 清理上一次未触发的 moveend 监听
+    if (moveEndHandlerRef.current) {
+      map.off("moveend", moveEndHandlerRef.current);
+      moveEndHandlerRef.current = null;
+    }
+
+    // 把路线中心放到「可见区中心」所需的像素偏移（正值表示路线中心需向下移动）
+    // 由于 setZoomAndCenter 把 [lngC, latC] 放到容器中心 (mapW/2, mapH/2)，
+    // 而目标是 (mapW/2, visibleCenterY)，偏移 = visibleCenterY - mapH/2 = -sheetHeight/2
+    // panBy(0, dy) 中 dy 正值表示地图向「下」平移（内容看起来向下），
+    // 我们需要路线中心从 mapH/2 移动到 visibleCenterY（更靠上），dy = visibleCenterY - mapH/2 = -(sheetHeight/2)
+    const panDy = visibleCenterY - mapH / 2;
+
+    // 一次性 moveend 监听：等 setZoomAndCenter 动画结束后再 panBy
+    const onMoveEnd = () => {
+      map.off("moveend", onMoveEnd);
+      moveEndHandlerRef.current = null;
+      if (Math.abs(panDy) > 1) {
+        map.panBy(0, panDy);
+      }
+    };
+    moveEndHandlerRef.current = onMoveEnd;
+    map.on("moveend", onMoveEnd);
+
+    // 一次性设置 zoom + center（同步触发动画）
+    map.setZoomAndCenter(zoom, [lngC, latC]);
+
+    // 兜底：若 500ms 内未收到 moveend（地图本就稳定无动画），主动 panBy
+    setTimeout(() => {
+      if (moveEndHandlerRef.current === onMoveEnd) {
+        map.off("moveend", onMoveEnd);
+        moveEndHandlerRef.current = null;
+        if (Math.abs(panDy) > 1) {
+          map.panBy(0, panDy);
+        }
+      }
+    }, 500);
+  };
+  const fitRouteView = (stage?: string) => {
+    // 防抖：多次调用只执行最后一次
+    if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+    fitTimerRef.current = setTimeout(() => applyFitView(stage), 200);
   };
 
   // 初始化地图 + 绘制住户标记
@@ -77,7 +177,6 @@ export function NavMap({
 
     initAMap([
       "AMap.Scale",
-      "AMap.Geolocation",
       "AMap.ControlBar",
       "AMap.Geocoder",
       "AMap.Driving",
@@ -103,38 +202,20 @@ export function NavMap({
       mapRef.current = map;
       setMapReady(true);
 
-      // 隐藏定位控件默认按钮，用自定义逻辑触发
-      // zoomToAccuracy 关闭：走访模式下定位只用于到达检测，
-      // 不应自动缩放地图到精度圆，否则会覆盖 setFitView 设置的完整路线视野
-      const geolocation = new AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: GEOLOCATION_INTERVAL,
-        zoomToAccuracy: false,
-        GeoLocationFirst: true,
-        showButton: false,
-        showMarker: true,
-        showCircle: true,
-        markerOptions: {
-          content: `
-            <div class="loc-marker" style="position:relative;width:32px;height:32px;pointer-events:none;">
-              <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#2f80ed;border:3px solid white;box-shadow:0 0 0 3px rgba(47,128,237,.2),0 2px 6px rgba(0,0,0,.2);"></div>
-              <div style="position:absolute;left:50%;top:2px;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #2f80ed;filter:drop-shadow(0 -1px 2px rgba(0,0,0,.2));"></div>
-            </div>
-          `,
-          offset: new AMap.Pixel(-16, -16),
-        },
-        circleOptions: {
-          strokeColor: "#2f80ed",
-          strokeOpacity: 0.3,
-          strokeWeight: 1,
-          fillColor: "#2f80ed",
-          fillOpacity: 0.08,
-          clickable: false,
-          bubble: true,
-        },
+      // 不使用 AMap.Geolocation 控件：该控件定位成功后会强制 setCenter 到定位点，
+      // 覆盖 fitRouteView 设置的路线视野，且无法通过选项禁用。
+      // 改用手动 Marker + navigator.geolocation，地图视野完全由我们控制。
+      locMarkerRef.current = new AMap.Marker({
+        content: `
+          <div class="loc-marker" style="position:relative;width:32px;height:32px;pointer-events:none;">
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#2f80ed;border:3px solid white;box-shadow:0 0 0 3px rgba(47,128,237,.2),0 2px 6px rgba(0,0,0,.2);"></div>
+            <div style="position:absolute;left:50%;top:2px;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #2f80ed;filter:drop-shadow(0 -1px 2px rgba(0,0,0,.2));"></div>
+          </div>
+        `,
+        offset: new AMap.Pixel(-16, -16),
+        zIndex: 200,
       });
-      map.addControl(geolocation);
-      geolocationRef.current = geolocation;
+      locMarkerRef.current.setMap(map);
 
       // 绘制走访住户标记（编号 + 标签主色）
       households.forEach((h, idx) => {
@@ -165,10 +246,6 @@ export function NavMap({
     });
 
     function locateAndDraw() {
-      const AMap = AMapRef.current;
-      const geo = geolocationRef.current;
-      if (!AMap || !geo) return;
-
       let resolved = false;
       const fallbackDefault = () => {
         if (resolved) return;
@@ -180,20 +257,30 @@ export function NavMap({
       // iOS 非安全上下文兜底：6 秒后回退默认位置
       const timer = setTimeout(fallbackDefault, 6000);
 
-      geo.getCurrentPosition();
-      geo.on("complete", (data: { position: { getLng: () => number; getLat: () => number } }) => {
-        if (resolved || !data?.position) return;
-        resolved = true;
-        clearTimeout(timer);
-        setLocating(false);
-        const lng = data.position.getLng();
-        const lat = data.position.getLat();
-        drawRoute([lng, lat]);
-      });
-      geo.on("error", () => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
         clearTimeout(timer);
         fallbackDefault();
-      });
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timer);
+          setLocating(false);
+          // 更新定位标记位置
+          if (locMarkerRef.current) {
+            locMarkerRef.current.setPosition([pos.coords.longitude, pos.coords.latitude]);
+          }
+          drawRoute([pos.coords.longitude, pos.coords.latitude]);
+        },
+        () => {
+          clearTimeout(timer);
+          fallbackDefault();
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -327,9 +414,22 @@ export function NavMap({
 
     return () => {
       cancelled = true;
+      if (fitTimerRef.current) {
+        clearTimeout(fitTimerRef.current);
+        fitTimerRef.current = null;
+      }
       if (visitWatchRef.current) {
         clearInterval(visitWatchRef.current);
         visitWatchRef.current = null;
+      }
+      // 清理可能残留的 moveend 一次性监听
+      if (mapRef.current && moveEndHandlerRef.current) {
+        try {
+          mapRef.current.off("moveend", moveEndHandlerRef.current);
+        } catch {
+          // ignore
+        }
+        moveEndHandlerRef.current = null;
       }
       routeLayerRef.current.forEach((item) => {
         if (item.setMap) item.setMap(null);
@@ -348,17 +448,16 @@ export function NavMap({
   }, []);
 
   // 走访模式：周期性定位检测是否到达住户附近
+  // 使用 navigator.geolocation（非 AMap.Geolocation 控件），避免控件强制移动地图覆盖 fitView
   useEffect(() => {
-    if (!visitMode || !geolocationRef.current) return;
-    geolocationRef.current.getCurrentPosition();
-    visitWatchRef.current = setInterval(() => {
-      geolocationRef.current?.getCurrentPosition();
-    }, GEOLOCATION_INTERVAL);
+    if (!visitMode) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
 
-    const onLocate = (data: { position: { getLng: () => number; getLat: () => number } }) => {
-      if (!data?.position) return;
-      const lng = data.position.getLng();
-      const lat = data.position.getLat();
+    const checkArrive = (lng: number, lat: number) => {
+      // 更新定位标记
+      if (locMarkerRef.current) {
+        locMarkerRef.current.setPosition([lng, lat]);
+      }
       households.forEach((h) => {
         if (visitedIdsRef.current.has(h.id)) return;
         const hLng = Number(h.longitude);
@@ -374,7 +473,17 @@ export function NavMap({
         }
       });
     };
-    geolocationRef.current.on("complete", onLocate);
+
+    const locate = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => checkArrive(pos.coords.longitude, pos.coords.latitude),
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    };
+
+    locate();
+    visitWatchRef.current = setInterval(locate, GEOLOCATION_INTERVAL);
 
     return () => {
       if (visitWatchRef.current) {
@@ -394,6 +503,31 @@ export function NavMap({
     window.addEventListener("nav-sheet-stage-change", handler);
     return () => window.removeEventListener("nav-sheet-stage-change", handler);
     // fitRouteView 读取 ref，不依赖外部值
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 监听抽屉拖拽状态：拖拽进行中禁用地图触摸交互，避免拖抽屉时下方地图跟着滑动。
+  // 双保险：
+  //   1) map.setStatus({ touchable: false }) 阻止高德内部触摸手势处理；
+  //   2) 给 .nav-map-area 加 .dragging 类，CSS 禁用 pointer-events + touch-action。
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const map = mapRef.current;
+      const dragging = (e as CustomEvent).detail?.dragging as boolean;
+      // CSS 兜底：给 .nav-map-area 加/移除 dragging 类
+      const mapArea = containerRef.current?.parentElement?.parentElement;
+      if (mapArea && mapArea.classList.contains("nav-map-area")) {
+        mapArea.classList.toggle("dragging", !!dragging);
+      }
+      if (!map) return;
+      try {
+        map.setStatus({ touchable: !dragging });
+      } catch {
+        // setStatus 在某些版本不支持 touchable，忽略错误，CSS 兜底仍生效
+      }
+    };
+    window.addEventListener("nav-sheet-drag", handler);
+    return () => window.removeEventListener("nav-sheet-drag", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

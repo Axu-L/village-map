@@ -1594,6 +1594,16 @@ select:focus-visible {
   position: absolute;
   inset: 0;
 }
+/* 抽屉拖拽进行中：禁用地图触摸交互，防止拖抽屉时地图跟着动 */
+.nav-page:has(.nav-sheet.dragging) .nav-map-area,
+.nav-map-area.dragging {
+  pointer-events: none;
+  touch-action: none;
+}
+.nav-map-area.dragging #nav-amap-container {
+  pointer-events: none;
+  touch-action: none;
+}
 .nav-map-area #nav-amap-container {
   width: 100% !important;
   height: 100% !important;
