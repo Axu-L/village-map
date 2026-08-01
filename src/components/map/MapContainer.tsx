@@ -176,6 +176,44 @@ export function MapContainer({
           villageMarker.setMap(map);
           villageMarkerRef.current = villageMarker;
 
+          // 强制修正高德 logo / 版权 / 比例尺位置
+          // 高德 SDK 运行时注入的 <style> 会覆盖 globals.css 的 !important 规则，
+          // 这里用内联 style（优先级最高）兜底，确保控件锚定到容器左下角，且互不重叠
+          const fixControls = () => {
+            const root = containerRef.current;
+            if (!root) return;
+            const apply = (sel: string, props: Record<string, string>) => {
+              const el = root.querySelector(sel) as HTMLElement | null;
+              if (!el) return;
+              Object.entries(props).forEach(([k, v]) =>
+                el.style.setProperty(k, v, "important")
+              );
+            };
+            apply(".amap-logo", {
+              left: "6px",
+              bottom: "2px",
+              right: "auto",
+              top: "auto",
+              "z-index": "2",
+            });
+            apply(".amap-copyright", {
+              right: "6px",
+              bottom: "2px",
+              left: "auto",
+              top: "auto",
+              "z-index": "2",
+            });
+            apply(".amap-scalecontrol", {
+              left: "6px",
+              bottom: "30px",
+              top: "auto",
+              "z-index": "2",
+            });
+          };
+          // logo DOM 在 new AMap.Map 时同步插入，下一帧设置即可确保已渲染
+          requestAnimationFrame(fixControls);
+          map.on("complete", fixControls);
+
           // 初始化逆地理编码
           geocoderRef.current = new AMap.Geocoder({
             extensions: "all",
