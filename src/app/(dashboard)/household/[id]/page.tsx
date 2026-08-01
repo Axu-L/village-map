@@ -887,75 +887,22 @@ function AddMemberModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
+    <div className="modal-layer" onClick={onClose}>
       <div
-        style={{
-          background: "#fff",
-          borderRadius: 16,
-          padding: "24px 28px",
-          width: 420,
-          maxWidth: "90vw",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-        }}
+        className="modal"
+        style={{ maxWidth: 460 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: "#2b405b",
-              margin: 0,
-            }}
-          >
-            {isEdit ? "编辑成员" : "添加成员"}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: "#8a95a8",
-              padding: 4,
-            }}
-          >
-            <X size={18} />
+        <header>
+          <h2>{isEdit ? "编辑成员" : "添加成员"}</h2>
+          <button className="close-button" aria-label="关闭" onClick={onClose}>
+            <X size={20} />
           </button>
-        </div>
+        </header>
 
         <form onSubmit={handleSubmit}>
-          {/* 姓名 */}
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#2b405b",
-                marginBottom: 6,
-              }}
-            >
+          <div className="form-field">
+            <label>
               姓名 <span style={{ color: "#EB5757" }}>*</span>
             </label>
             <input
@@ -964,44 +911,14 @@ function AddMemberModal({
               onChange={(e) => setName(e.target.value)}
               required
               placeholder="请输入姓名"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #e0e4ea",
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
             />
           </div>
 
-          {/* 与户主关系 */}
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#2b405b",
-                marginBottom: 6,
-              }}
-            >
-              与户主关系
-            </label>
+          <div className="form-field">
+            <label>与户主关系</label>
             <select
               value={relation}
               onChange={(e) => setRelation(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #e0e4ea",
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                background: "#fff",
-                boxSizing: "border-box",
-              }}
             >
               {relationOptions.map((opt) => (
                 <option key={opt} value={opt}>
@@ -1011,19 +928,8 @@ function AddMemberModal({
             </select>
           </div>
 
-          {/* 年龄 */}
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#2b405b",
-                marginBottom: 6,
-              }}
-            >
-              年龄
-            </label>
+          <div className="form-field">
+            <label>年龄</label>
             <input
               type="number"
               value={age}
@@ -1031,139 +937,55 @@ function AddMemberModal({
               placeholder="请输入年龄"
               min={0}
               max={150}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #e0e4ea",
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
             />
           </div>
 
-          {/* 性别 */}
-          <div style={{ marginBottom: 16 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#2b405b",
-                marginBottom: 6,
-              }}
-            >
-              性别
-            </label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #e0e4ea",
-                borderRadius: 8,
-                fontSize: 13,
-                outline: "none",
-                background: "#fff",
-                boxSizing: "border-box",
-              }}
-            >
+          <div className="form-field">
+            <label>性别</label>
+            <select value={gender} onChange={(e) => setGender(e.target.value)}>
               <option value="男">男</option>
               <option value="女">女</option>
             </select>
           </div>
 
-          {/* 标签 */}
-          <div style={{ marginBottom: 24 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#2b405b",
-                marginBottom: 6,
-              }}
-            >
-              标签
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {allTags.map((tag) => (
-                <label
-                  key={tag}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    cursor: "pointer",
-                    fontSize: 12,
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: `1px solid ${
-                      selectedTags.includes(tag) ? getTagColor(tag) : "#e0e4ea"
-                    }`,
-                    background: selectedTags.includes(tag)
-                      ? `${getTagColor(tag)}15`
-                      : "transparent",
-                    color: selectedTags.includes(tag)
-                      ? getTagColor(tag)
-                      : "#5a6577",
-                    fontWeight: selectedTags.includes(tag) ? 600 : 400,
-                    transition: "all 0.15s",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTags.includes(tag)}
-                    onChange={() => toggleTag(tag)}
-                    style={{ display: "none" }}
-                  />
-                  {tag}
-                </label>
-              ))}
+          <div className="form-field">
+            <label>标签</label>
+            <div className="tag-select-group">
+              {allTags.map((tag) => {
+                const active = selectedTags.includes(tag);
+                const color = getTagColor(tag);
+                return (
+                  <label
+                    key={tag}
+                    className={`tag-select-btn ${active ? "active" : ""}`}
+                    style={
+                      active
+                        ? {
+                            color,
+                            background: `${color}15`,
+                            borderColor: color,
+                          }
+                        : undefined
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleTag(tag)}
+                      style={{ display: "none" }}
+                    />
+                    {tag}
+                  </label>
+                );
+              })}
             </div>
           </div>
 
-          {/* Buttons */}
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              justifyContent: "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "8px 20px",
-                border: "1px solid #e0e4ea",
-                borderRadius: 8,
-                background: "#fff",
-                color: "#5a6577",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+            <button type="button" className="soft-button" onClick={onClose}>
               取消
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                padding: "8px 20px",
-                border: "none",
-                borderRadius: 8,
-                background: "linear-gradient(135deg, #27ae60, #2f80ed)",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: submitting ? "not-allowed" : "pointer",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
+            <button type="submit" className="primary-button" disabled={submitting}>
               {submitting ? "提交中..." : isEdit ? "确认修改" : "确认添加"}
             </button>
           </div>

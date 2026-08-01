@@ -662,7 +662,8 @@ select:focus-visible {
 
 /* ──────────────────── Household Form Modal ──────────────────── */
 .household-form-modal {
-  width: min(960px, 96vw);
+  width: 100%;
+  max-width: 960px;
   max-height: calc(100vh - 44px);
   overflow: hidden;
   border-radius: 16px;
@@ -834,7 +835,8 @@ select:focus-visible {
 
 /* ──────────────────── Visit Form Modal ──────────────────── */
 .visit-form-modal {
-  width: min(540px, 94vw);
+  width: 100%;
+  max-width: 540px;
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: 16px;
@@ -859,7 +861,8 @@ select:focus-visible {
 
 /* ──────────────────── Route Plan Modal ──────────────────── */
 .route-plan-modal {
-  width: min(520px, 94vw);
+  width: 100%;
+  max-width: 520px;
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: 16px;
@@ -1435,7 +1438,7 @@ select:focus-visible {
 /* ──────────────────── Modal Layer ──────────────────── */
 .modal-layer {
   position: fixed;
-  z-index: 60;
+  z-index: 10000;
   inset: 0;
   display: grid;
   place-items: center;
@@ -1444,7 +1447,8 @@ select:focus-visible {
   backdrop-filter: blur(2px);
 }
 .modal {
-  width: min(690px, 100%);
+  width: 100%;
+  max-width: 690px;
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: 16px;
@@ -1462,6 +1466,9 @@ select:focus-visible {
   margin: 5px 0 0;
   color: #263b57;
   font-size: 21px;
+}
+.modal > form {
+  padding: 22px 25px;
 }
 
 /* ──────────────────── Primary & Soft Buttons ──────────────────── */
@@ -2528,6 +2535,11 @@ select:focus-visible {
     max-width: 360px;
   }
 
+  /* Modal layer mobile: 缩小留白但保留圆角，避免与 border-radius 冲突 */
+  .modal-layer {
+    padding: 12px;
+  }
+
   /* Drawer mobile: bottom sheet */
   .drawer {
     top: auto;
@@ -2597,11 +2609,6 @@ select:focus-visible {
     height: 35vh;
     min-height: 220px;
   }
-  .household-form-modal {
-    width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-  }
   .household-form-modal > header {
     padding: 14px 16px 10px;
   }
@@ -2610,11 +2617,6 @@ select:focus-visible {
   }
 
   /* Visit form mobile */
-  .visit-form-modal {
-    width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-  }
   .visit-form-modal > header {
     padding: 14px 16px 10px;
   }
