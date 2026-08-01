@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Household } from "@/types";
 import { getHouseholdColor, tagIconMap } from "@/lib/tags";
-import { getMapSettings, initAMap, fixAmapControls } from "@/lib/amap";
+import { getMapSettings, syncMapSettings, initAMap, fixAmapControls } from "@/lib/amap";
 import { GEOLOCATION_INTERVAL, VISIT_ARRIVE_THRESHOLD } from "@/lib/constants";
 
 /** HTML 转义，防止 marker content 中的存储型 XSS */
@@ -179,6 +179,9 @@ export function MapContainer({
           // 强制修正高德 logo / 版权 / 比例尺位置（SDK 注入的样式会覆盖 CSS !important）
           requestAnimationFrame(() => fixAmapControls(map));
           map.on("complete", () => fixAmapControls(map));
+
+          // 从服务器同步最新地图设置（多设备共享），dispatch 事件后会触发下方监听器更新地图中心
+          syncMapSettings();
 
           // 初始化逆地理编码
           geocoderRef.current = new AMap.Geocoder({

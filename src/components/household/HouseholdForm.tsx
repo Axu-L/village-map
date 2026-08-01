@@ -5,7 +5,8 @@ import { allTags, getTagColor } from "@/lib/tags";
 import { X, MapPin, Check, Loader2, ChevronDown, Minus, Plus } from "lucide-react";
 import { MapContainer } from "@/components/map/MapContainer";
 import { GROUP_NAMES } from "@/lib/constants";
-import { DEFAULT_CENTER } from "@/lib/amap";
+import { DEFAULT_CENTER, reverseGeocode } from "@/lib/amap";
+import { useToast } from "@/components/ui/Toast";
 import type { Household, Tag } from "@/types";
 
 interface HouseholdFormProps {
@@ -35,6 +36,8 @@ export function HouseholdForm({
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
+  const { toast } = useToast();
+
   const toggleTag = (tag: Tag) => {
     setTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -53,19 +56,28 @@ export function HouseholdForm({
     return () => document.removeEventListener("mousedown", handler);
   }, [tagDropdownOpen]);
 
-  // 地图选点后自动逆地理编码填充地址
-  const handlePickAddress = (addr: string) => {
-    setGeocoding(false);
-    if (addr) {
-      setAddress(addr);
-    }
-  };
-
-  // 当 pickPosition 变化时标记正在编码
+  // pickPosition 变化时自行调用逆地理编码填充地址
+  // 不依赖 MapContainer 的 map click 事件，确保程序化设置坐标（如自动定位）也能反查地址
   useEffect(() => {
-    if (pickPosition) {
-      setGeocoding(true);
-    }
+    if (!pickPosition) return;
+    // pickPosition 可来自地图点击或自动定位，此处集中触发逆地理编码并切换加载态；
+    // 依赖项为 pickPosition，与 geocoding 无关，不会引起级联渲染
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGeocoding(true);
+    let cancelled = false;
+    reverseGeocode(pickPosition.lng, pickPosition.lat)
+      .then((addr) => {
+        if (cancelled) return;
+        if (addr) setAddress(addr);
+        setGeocoding(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGeocoding(false); // 失败也关闭，不卡在"识别中"
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [pickPosition]);
 
   // 新增住户时默认填充当前定位位置（编辑流程有 initialData 不触发）
@@ -75,25 +87,26 @@ export function HouseholdForm({
     if (pickPosition) return; // 已有位置不覆盖
 
     let resolved = false;
-    const fill = (lng: number, lat: number) => {
+    const fill = (lng: number, lat: number, fallbackMsg?: string) => {
       if (resolved) return;
       resolved = true;
       onMapClick(lng, lat);
+      if (fallbackMsg) toast(fallbackMsg, "error");
     };
 
     // 兜底定时器：6 秒未拿到定位则回退默认中心
     const timer = setTimeout(() => {
-      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1], "定位超时，已使用默认位置");
     }, 6000);
 
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => fill(pos.coords.longitude, pos.coords.latitude),
-        () => fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]),
+        () => fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1], "定位失败，已使用默认位置"),
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
-      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1], "浏览器不支持定位，已使用默认位置");
     }
 
     return () => clearTimeout(timer);
@@ -319,7 +332,6 @@ export function HouseholdForm({
               selectedId={null}
               onSelect={() => {}}
               onMapClick={onMapClick}
-              onPickAddress={handlePickAddress}
               pickingMode={true}
               pickPosition={pickPosition}
             />

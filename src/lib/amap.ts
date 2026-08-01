@@ -63,7 +63,7 @@ export interface MapSettings {
   zoom: number;
 }
 
-/** 读取地图设置，未配置时返回内置默认值 */
+/** 读取地图设置，未配置时返回内置默认值（同步读 localStorage 缓存，快速初始化） */
 export function getMapSettings(): MapSettings {
   if (typeof window === "undefined") return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
   try {
@@ -83,12 +83,74 @@ export function getMapSettings(): MapSettings {
   }
 }
 
-/** 保存地图设置 */
-export function saveMapSettings(settings: MapSettings): void {
+/**
+ * 从服务器同步地图设置到本地缓存（多设备共享）
+ * 登录后调用一次，拉取后端最新设置并更新 localStorage + 通知组件刷新
+ */
+export async function syncMapSettings(): Promise<void> {
   if (typeof window === "undefined") return;
+  try {
+    const { apiFetch } = await import("@/lib/api");
+    const data = await apiFetch("/api/settings");
+    if (data && Array.isArray(data.center) && data.center.length === 2) {
+      const lng = Number(data.center[0]);
+      const lat = Number(data.center[1]);
+      const zoom = Number(data.zoom);
+      if (!isNaN(lng) && !isNaN(lat) && !isNaN(zoom)) {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ center: [lng, lat], zoom })
+        );
+        window.dispatchEvent(new CustomEvent("map-settings-changed"));
+      }
+    }
+  } catch {
+    // 读取失败（未登录/网络错误），静默使用本地缓存
+  }
+}
+
+/**
+ * 保存地图设置（同时写入本地缓存和后端，实现多设备同步）
+ */
+export async function saveMapSettings(settings: MapSettings): Promise<void> {
+  if (typeof window === "undefined") return;
+  // 先写本地缓存（立即可用，离线也能工作）
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  // 同步到后端（失败不阻塞，本地仍是最新）
+  try {
+    const { apiFetch } = await import("@/lib/api");
+    await apiFetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  } catch {
+    // 后端同步失败，本地已保存，不阻塞用户
+  }
   // 通知其他组件（如地图页）设置已更新
   window.dispatchEvent(new CustomEvent("map-settings-changed"));
+}
+
+/**
+ * 逆地理编码：经纬度 → 详细地址
+ * 供 HouseholdForm 等组件在 pickPosition 变化时调用，不依赖地图点击事件
+ */
+export async function reverseGeocode(
+  lng: number,
+  lat: number
+): Promise<string> {
+  const AMap = await initAMap(["AMap.Geocoder"]);
+  return new Promise((resolve, reject) => {
+    const geocoder = new AMap.Geocoder({ extensions: "all" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    geocoder.getAddress([lng, lat], (status: string, result: any) => {
+      if (status === "complete" && result?.info === "OK") {
+        resolve(result.regeocode.formattedAddress as string);
+      } else {
+        reject(new Error("逆地理编码失败"));
+      }
+    });
+  });
 }
 
 /**

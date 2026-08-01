@@ -50,3 +50,12 @@ export const users = sqliteTable("users", {
   role: text("role").notNull().default("admin"),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
 });
+
+// 地图设置（单行 KV，多设备共享）
+export const settings = sqliteTable("settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  centerLng: text("center_lng").notNull(),
+  centerLat: text("center_lat").notNull(),
+  zoom: integer("zoom").notNull().default(16),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});

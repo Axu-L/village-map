@@ -5,7 +5,7 @@ import { verifyToken } from "@/lib/jwt";
 const PUBLIC_PATHS = ["/api/auth", "/api/health"];
 
 // 需要鉴权的 API 路径前缀（所有方法，含 GET）
-const PROTECTED_PREFIXES = ["/api/households", "/api/members", "/api/visits", "/api/upload"];
+const PROTECTED_PREFIXES = ["/api/households", "/api/members", "/api/visits", "/api/upload", "/api/settings"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

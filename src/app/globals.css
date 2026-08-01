@@ -78,6 +78,21 @@ select:focus-visible {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* 移动端 Toast：避开顶部 sticky 顶栏（60px），居中顶部展示 */
+@media (max-width: 768px) {
+  .toast-container {
+    top: 72px;
+    right: 12px;
+    left: 12px;
+    align-items: center;
+  }
+  .toast-item {
+    font-size: 12px;
+    padding: 8px 14px;
+    max-width: 100%;
+    text-align: center;
+  }
+}
 
 /* ──────────────────── Sidebar ──────────────────── */
 .sidebar {

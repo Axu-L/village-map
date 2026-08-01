@@ -69,6 +69,14 @@ export function initDb() {
       role TEXT NOT NULL DEFAULT 'admin',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      center_lng TEXT NOT NULL,
+      center_lat TEXT NOT NULL,
+      zoom INTEGER NOT NULL DEFAULT 16,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // 为已有的 visits 表添加 images 字段（兼容旧数据库）

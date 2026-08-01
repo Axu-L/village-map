@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getMapSettings, saveMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap, fixAmapControls } from "@/lib/amap";
+import { getMapSettings, saveMapSettings, syncMapSettings, DEFAULT_CENTER, DEFAULT_ZOOM, initAMap, fixAmapControls } from "@/lib/amap";
 import { useToast } from "@/components/ui/Toast";
 import { LocateFixed, Save, MapPin, RotateCcw } from "lucide-react";
 
@@ -91,6 +91,21 @@ export function MapSettingsPicker() {
 
         // 初始逆地理编码
         reverseGeocode(settings.center[0], settings.center[1]);
+
+        // 从服务器同步最新设置（多设备共享），若与本地不同则更新地图与标记
+        syncMapSettings().then(() => {
+          if (cancelled) return;
+          const synced = getMapSettings();
+          if (mapRef.current) {
+            mapRef.current.setZoomAndCenter(synced.zoom, synced.center);
+          }
+          if (markerRef.current) {
+            markerRef.current.setPosition(synced.center);
+          }
+          setCenter(synced.center);
+          setZoom(synced.zoom);
+          reverseGeocode(synced.center[0], synced.center[1]);
+        });
       })
       .catch((e: Error) => {
         console.error("地图加载失败", e);
@@ -163,21 +178,21 @@ export function MapSettingsPicker() {
     );
   };
 
-  // 保存设置
-  const handleSave = () => {
-    saveMapSettings({ center, zoom });
+  // 保存设置（同步到后端 + 本地）
+  const handleSave = async () => {
+    await saveMapSettings({ center, zoom });
     toast("地图设置已保存，地图已同步更新", "success");
   };
 
   // 恢复默认
-  const handleReset = () => {
+  const handleReset = async () => {
     setCenter(DEFAULT_CENTER);
     setZoom(DEFAULT_ZOOM);
     if (mapRef.current && markerRef.current) {
       mapRef.current.setZoomAndCenter(DEFAULT_ZOOM, DEFAULT_CENTER);
       markerRef.current.setPosition(DEFAULT_CENTER);
     }
-    saveMapSettings({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+    await saveMapSettings({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
     toast("已恢复默认设置", "success");
   };
 
