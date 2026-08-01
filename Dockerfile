@@ -19,7 +19,11 @@ ENV NEXT_PUBLIC_AMAP_KEY=0725c389055177586ede0637887fcde2
 ENV NEXT_PUBLIC_AMAP_SECRET=31b32c8992a245df88ff4a90aba5a1cf
 
 COPY package*.json ./
-RUN npm install
+# better-sqlite3 是原生模块，无预编译二进制时需 node-gyp 编译。
+# 配置 node headers 和 prebuild 二进制走国内镜像，避免访问 nodejs.org/github 超时
+RUN npm config set disturl https://npmmirror.com/mirrors/node \
+    && npm config set better_sqlite3_binary_host_mirror https://npmmirror.com/mirrors/better-sqlite3 \
+    && npm install --foreground-scripts
 COPY . .
 RUN npm run build
 RUN cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
