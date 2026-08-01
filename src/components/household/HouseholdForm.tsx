@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent, useEffect, useRef } from "react";
 import { allTags, getTagColor } from "@/lib/tags";
-import { X, MapPin, Check, Loader2 } from "lucide-react";
+import { X, MapPin, Check, Loader2, ChevronDown, Minus, Plus } from "lucide-react";
 import { MapContainer } from "@/components/map/MapContainer";
 import { GROUP_NAMES } from "@/lib/constants";
 import { DEFAULT_CENTER } from "@/lib/amap";
@@ -32,12 +32,26 @@ export function HouseholdForm({
   );
   const [tags, setTags] = useState<Tag[]>(initialData?.tags || []);
   const [geocoding, setGeocoding] = useState(false);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   const toggleTag = (tag: Tag) => {
     setTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   };
+
+  // 点击外部关闭特殊群体下拉
+  useEffect(() => {
+    if (!tagDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [tagDropdownOpen]);
 
   // 地图选点后自动逆地理编码填充地址
   const handlePickAddress = (addr: string) => {
@@ -140,23 +154,6 @@ export function HouseholdForm({
             </div>
 
             <div className="form-field">
-              <label>所属组别</label>
-              <div className="tag-select-group">
-                {groups.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    className={`tag-select-btn ${groupName === g ? "active" : ""}`}
-                    onClick={() => setGroupName(g)}
-                  >
-                    {groupName === g && <Check size={12} />}
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-field">
               <label>
                 家庭地址
                 {geocoding && (
@@ -173,53 +170,119 @@ export function HouseholdForm({
               />
             </div>
 
-            <div className="form-field">
-              <label>家庭人数</label>
-              <input
-                type="number"
-                min={1}
-                value={memberCount}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setMemberCount(isNaN(n) ? 1 : Math.max(1, n));
-                }}
-              />
-            </div>
-
-            <div className="form-field">
-              <label>特殊群体</label>
-              <div className="tag-select-group">
-                {allTags.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={`tag-select-btn ${tags.includes(tag) ? "active" : ""}`}
-                    style={
-                      tags.includes(tag)
-                        ? {
-                            background: getTagColor(tag),
-                            color: "#fff",
-                            borderColor: getTagColor(tag),
-                          }
-                        : {
-                            color: getTagColor(tag),
-                            borderColor: `${getTagColor(tag)}40`,
-                          }
-                    }
-                    onClick={() => toggleTag(tag)}
+            {/* 一行三列：所属组别 / 特殊群体 / 家庭人数 */}
+            <div className="form-row-3">
+              {/* 所属组别 —— 下拉 */}
+              <div className="form-field">
+                <label>所属组别</label>
+                <div className="select-wrap">
+                  <select
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
                   >
-                    {tags.includes(tag) && <Check size={12} />}
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: tags.includes(tag) ? "#fff" : getTagColor(tag),
-                      }}
-                    />
-                    {tag}
+                    {groups.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="select-arrow" />
+                </div>
+              </div>
+
+              {/* 特殊群体 —— 多选下拉 */}
+              <div className="form-field" ref={tagDropdownRef}>
+                <label>特殊群体</label>
+                <button
+                  type="button"
+                  className={`multi-select-trigger ${tagDropdownOpen ? "open" : ""}`}
+                  onClick={() => setTagDropdownOpen((v) => !v)}
+                >
+                  <span className="multi-select-value">
+                    {tags.length === 0 ? (
+                      <span className="multi-select-placeholder">请选择</span>
+                    ) : (
+                      <span className="multi-select-chips">
+                        {tags.slice(0, 2).map((t) => (
+                          <span
+                            key={t}
+                            className="multi-select-chip"
+                            style={{
+                              background: `${getTagColor(t)}18`,
+                              color: getTagColor(t),
+                            }}
+                          >
+                            {t}
+                          </span>
+                        ))}
+                        {tags.length > 2 && (
+                          <span className="multi-select-chip multi-select-more">
+                            +{tags.length - 2}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown size={14} className="select-arrow" />
+                </button>
+                {tagDropdownOpen && (
+                  <div className="multi-select-dropdown">
+                    {allTags.map((tag) => {
+                      const checked = tags.includes(tag);
+                      const color = getTagColor(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`multi-select-option ${checked ? "checked" : ""}`}
+                          onClick={() => toggleTag(tag)}
+                        >
+                          <span
+                            className="multi-select-dot"
+                            style={{ background: color }}
+                          />
+                          <span className="multi-select-label">{tag}</span>
+                          <span className={`multi-select-checkbox ${checked ? "checked" : ""}`}>
+                            {checked && <Check size={12} />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 家庭人数 —— 步进器 */}
+              <div className="form-field">
+                <label>家庭人数</label>
+                <div className="stepper">
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setMemberCount((n) => Math.max(1, n - 1))}
+                    disabled={memberCount <= 1}
+                    aria-label="减少"
+                  >
+                    <Minus size={14} />
                   </button>
-                ))}
+                  <input
+                    type="number"
+                    min={1}
+                    value={memberCount}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setMemberCount(isNaN(n) || n < 1 ? 1 : n);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setMemberCount((n) => n + 1)}
+                    aria-label="增加"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
             </div>
 
