@@ -5,6 +5,7 @@ import { allTags, getTagColor } from "@/lib/tags";
 import { X, MapPin, Check, Loader2 } from "lucide-react";
 import { MapContainer } from "@/components/map/MapContainer";
 import { GROUP_NAMES } from "@/lib/constants";
+import { DEFAULT_CENTER } from "@/lib/amap";
 import type { Household, Tag } from "@/types";
 
 interface HouseholdFormProps {
@@ -52,6 +53,38 @@ export function HouseholdForm({
       setGeocoding(true);
     }
   }, [pickPosition]);
+
+  // 新增住户时默认填充当前定位位置（编辑流程有 initialData 不触发）
+  // 优先用浏览器定位；iOS 非 HTTPS 等场景下定位会被静默屏蔽，6 秒兜底回退到村庄默认中心
+  useEffect(() => {
+    if (initialData) return; // 仅新增
+    if (pickPosition) return; // 已有位置不覆盖
+
+    let resolved = false;
+    const fill = (lng: number, lat: number) => {
+      if (resolved) return;
+      resolved = true;
+      onMapClick(lng, lat);
+    };
+
+    // 兜底定时器：6 秒未拿到定位则回退默认中心
+    const timer = setTimeout(() => {
+      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+    }, 6000);
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fill(pos.coords.longitude, pos.coords.latitude),
+        () => fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      fill(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+    }
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
