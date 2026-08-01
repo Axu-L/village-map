@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { NavRouteInfo } from "@/types";
 import { ChevronUp, ChevronDown, X, Volume2, VolumeX, Navigation } from "lucide-react";
@@ -53,6 +53,13 @@ export function NavSheet({
       return i > 0 ? STAGE_ORDER[i - 1] : s;
     });
   }, []);
+
+  // 档位变化时通知 NavMap 重算路线视野，使路线落在未被遮挡的可见区居中
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("nav-sheet-stage-change", { detail: { stage } })
+    );
+  }, [stage]);
 
   // 嵌套滚动手势仲裁：
   // - 在内容区向下拖动时，若已滚动到顶部（scrollTop===0），则把拖动让给抽屉收起

@@ -35,6 +35,9 @@ export function NavMap({
   const visitedIdsRef = useRef<Set<number>>(new Set());
   const onRouteInfoRef = useRef(onRouteInfo);
   const onArriveRef = useRef(onArriveHousehold);
+  // 最近一次绘制的路线覆盖物（路线折线 + 起终点标记），供抽屉档位变化时重算视野
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lastRouteOverlaysRef = useRef<any[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [locating, setLocating] = useState(params.origin === null);
 
@@ -42,6 +45,30 @@ export function NavMap({
     onRouteInfoRef.current = onRouteInfo;
     onArriveRef.current = onArriveHousehold;
   });
+
+  /**
+   * 按抽屉档位重算路线视野，使路线落在「未被抽屉遮挡的可见区域」居中。
+   * 各档位下方 padding 取抽屉实际高度，顶部留 80px 避开状态栏。
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fitRouteView = (stage?: string) => {
+    const map = mapRef.current;
+    const overlays = lastRouteOverlaysRef.current;
+    if (!map || overlays.length === 0) return;
+    const top = 80;
+    let bottom = 150; // peek 档位默认
+    if (stage === "half") {
+      bottom = Math.round(window.innerHeight * 0.5) + 20;
+    } else if (stage === "full") {
+      bottom = Math.round(window.innerHeight * 0.92) + 20;
+    } else if (stage === "peek") {
+      bottom = 150;
+    } else {
+      // 未指定档位（首次进入）：按抽屉初始档位 half 计算
+      bottom = Math.round(window.innerHeight * 0.5) + 20;
+    }
+    map.setFitView(overlays, true, [80, 80, bottom, top]);
+  };
 
   // 初始化地图 + 绘制住户标记
   useEffect(() => {
@@ -249,9 +276,10 @@ export function NavMap({
           mainLine.setMap(map);
           routeLayerRef.current.push(mainLine);
 
-          // fitView 纳入路线 + 起终点标记，立即生效（无动画），
-          // 避免动画期间被走访定位等异步操作干扰视野
-          map.setFitView([mainLine, startMarker, endMarker], true, [80, 80, 120, 80]);
+          // 记录路线覆盖物，首次及抽屉档位变化时据此重算视野
+          lastRouteOverlaysRef.current = [mainLine, startMarker, endMarker];
+          // 首次绘制按抽屉初始档位 half 计算下方留白，路线落在可见区居中
+          fitRouteView("half");
         }
 
         const distance =
@@ -356,6 +384,18 @@ export function NavMap({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visitMode]);
+
+  // 监听抽屉档位变化：用户拖动抽屉后，重算路线视野使其落在可见区居中
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const stage = (e as CustomEvent).detail?.stage as string | undefined;
+      fitRouteView(stage);
+    };
+    window.addEventListener("nav-sheet-stage-change", handler);
+    return () => window.removeEventListener("nav-sheet-stage-change", handler);
+    // fitRouteView 读取 ref，不依赖外部值
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
