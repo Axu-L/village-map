@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
     "*.trae.cn",
     "*.agent-sandbox-bj-d3-gw.traecontent.cn",
     "*.traecontent.cn",
+    "*.svc.cluster.local",
+    "*.remote-agent.svc.cluster.local",
   ],
   // 安全响应头：全局基础防护 + 上传照片 noindex
   async headers() {
