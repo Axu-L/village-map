@@ -35,7 +35,8 @@ export default function TransferPage() {
   const [xlsxImporting, setXlsxImporting] = useState(false);
   const [xlsxResult, setXlsxResult] = useState<{
     total: number;
-    success: number;
+    inserted: number;
+    updated: number;
     skipped: number;
     failed: number;
     preview: Household[];
@@ -262,8 +263,8 @@ export default function TransferPage() {
 
       setXlsxResult(data);
       toast(
-        `导入完成：成功 ${data.success} 条，跳过 ${data.skipped} 条，失败 ${data.failed} 条`,
-        data.success > 0 ? "success" : "error"
+        `导入完成：新增 ${data.inserted} 条，更新 ${data.updated} 条，跳过 ${data.skipped} 条，失败 ${data.failed} 条`,
+        data.inserted > 0 || data.updated > 0 ? "success" : "error"
       );
 
       // 刷新列表
@@ -647,6 +648,21 @@ export default function TransferPage() {
           </span>
         </div>
 
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            background: "#fff8f0",
+            borderRadius: 8,
+            border: "1px solid #ffe4c4",
+            fontSize: 12,
+            color: "#8a6d3b",
+            lineHeight: 1.6,
+          }}
+        >
+          已存在的住户（姓名+组别匹配）将更新数据；导入字段为空时保留原值，标签自动合并。
+        </div>
+
         {/* xlsx 导入结果 */}
         {xlsxResult && (
           <div
@@ -659,22 +675,42 @@ export default function TransferPage() {
             }}
           >
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  background: "rgba(39,174,96,0.1)",
-                  color: "#27ae60",
-                  fontSize: 13,
-                  fontWeight: 600,
-                }}
-              >
-                <CheckCircle size={14} />
-                成功 {xlsxResult.success}
-              </div>
+              {xlsxResult.inserted > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: "rgba(39,174,96,0.1)",
+                    color: "#27ae60",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <CheckCircle size={14} />
+                  新增 {xlsxResult.inserted}
+                </div>
+              )}
+              {xlsxResult.updated > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: "rgba(47,128,237,0.1)",
+                    color: "#2f80ed",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <CheckCircle size={14} />
+                  更新 {xlsxResult.updated}
+                </div>
+              )}
               {xlsxResult.skipped > 0 && (
                 <div
                   style={{
@@ -690,7 +726,7 @@ export default function TransferPage() {
                   }}
                 >
                   <XCircle size={14} />
-                  跳过 {xlsxResult.skipped}（重复）
+                  跳过 {xlsxResult.skipped}
                 </div>
               )}
               {xlsxResult.failed > 0 && (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, User, MapPin, Info } from "lucide-react";
+import Link from "next/link";
+import { Settings, User, MapPin, Info, FileUp, ChevronRight } from "lucide-react";
 import { MapSettingsPicker } from "@/components/map/MapSettingsPicker";
 
 export default function SettingsPage() {
@@ -87,7 +88,48 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Section 2: 地图设置（地图选点） */}
+      {/* Section 2: 数据导入导出入口（移动端通过「我的」可达） */}
+      <Link
+        href="/transfer"
+        style={{
+          display: "block",
+          textDecoration: "none",
+          background: "#fff",
+          borderRadius: 14,
+          padding: "16px 24px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "#e67e2215",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#e67e22",
+              flexShrink: 0,
+            }}
+          >
+            <FileUp size={18} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#2b405b" }}>
+              数据导入导出
+            </div>
+            <div style={{ fontSize: 12, color: "#8a95a8" }}>
+              导出 CSV / 导入 Excel 登记表（xlsx）
+            </div>
+          </div>
+          <ChevronRight size={18} color="#b0b8c8" />
+        </div>
+      </Link>
+
+      {/* Section 3: 地图设置（地图选点） */}
       <div
         style={{
           background: "#fff",

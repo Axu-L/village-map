@@ -52,6 +52,9 @@ interface ParsedHousehold {
   address: string;
   memberCount: number;
   tags: Tag[];
+  // 标记源数据中对应字段是否「有数据」，用于决定更新时是否覆盖现有值
+  hasPhone: boolean;
+  hasAddress: boolean;
 }
 
 /**
@@ -93,7 +96,9 @@ function parseRows(rows: unknown[][]): ParsedHousehold[] {
     const category = String(row[colIdx.category] ?? "").trim();
     const groupName = normalizeGroup(String(row[colIdx.group] ?? ""));
     const phone = normalizePhone(row[colIdx.phone]);
-    const address = String(row[colIdx.address] ?? "").trim() || groupName || "";
+    // 原始地址单元格内容（用于判断是否有数据）；插入时若为空则回退到组别
+    const rawAddress = String(row[colIdx.address] ?? "").trim();
+    const address = rawAddress || groupName || "";
 
     const tags: Tag[] = [];
     const tag = CATEGORY_TAG_MAP[category];
@@ -110,9 +115,25 @@ function parseRows(rows: unknown[][]): ParsedHousehold[] {
       address,
       memberCount: 1,
       tags,
+      hasPhone: phone !== "",
+      hasAddress: rawAddress !== "",
     });
   }
   return result;
+}
+
+/**
+ * 安全解析已存在记录的 tags 字段
+ */
+function parseExistingTags(raw: unknown): Tag[] {
+  if (Array.isArray(raw)) return raw as Tag[];
+  if (typeof raw !== "string") return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? (v as Tag[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function POST(request: Request) {
@@ -150,45 +171,121 @@ export async function POST(request: Request) {
       );
     }
 
-    let success = 0;
+    let inserted = 0;
+    let updated = 0;
     let skipped = 0;
     let failed = 0;
     const errors: { name: string; reason: string }[] = [];
+    const updatedIds: number[] = [];
+    const insertedIds: number[] = [];
 
     for (const item of parsed) {
       try {
-        // 重复校验：户主姓名 + 组别 + 电话 完全相同视为重复
-        const existing = await db
-          .select()
-          .from(households)
-          .where(
-            and(
-              eq(households.headName, item.headName),
-              eq(households.groupName, item.groupName),
-              eq(households.phone, item.phone)
-            )
-          );
-        if (existing.length > 0) {
+        // 查找已存在的住户（upsert 匹配）：
+        // - 导入电话非空时：先按 姓名+组别+电话 精确匹配；未命中再按 姓名+组别 兜底（电话可能被手动修改过）
+        // - 导入电话为空时：按 姓名+组别 匹配
+        // 兜底/空电话匹配到多条时跳过，避免误更新
+        const selectCols = {
+          id: households.id,
+          phone: households.phone,
+          address: households.address,
+          tags: households.tags,
+        };
+        let existing: { id: number; phone: string; address: string; tags: string }[] = [];
+
+        if (item.hasPhone) {
+          existing = await db
+            .select(selectCols)
+            .from(households)
+            .where(
+              and(
+                eq(households.headName, item.headName),
+                eq(households.groupName, item.groupName),
+                eq(households.phone, item.phone)
+              )
+            );
+          // 精确未命中 → 按 姓名+组别 兜底（电话可能已被手动修改）
+          if (existing.length === 0) {
+            existing = await db
+              .select(selectCols)
+              .from(households)
+              .where(
+                and(
+                  eq(households.headName, item.headName),
+                  eq(households.groupName, item.groupName)
+                )
+              );
+          }
+        } else {
+          existing = await db
+            .select(selectCols)
+            .from(households)
+            .where(
+              and(
+                eq(households.headName, item.headName),
+                eq(households.groupName, item.groupName)
+              )
+            );
+        }
+
+        // 同名同组有多条 → 无法确定更新哪条，跳过避免误更新
+        if (existing.length > 1) {
           skipped++;
           continue;
         }
 
-        await db
-          .insert(households)
-          .values({
-            householdName: item.householdName,
-            headName: item.headName,
-            phone: item.phone,
-            groupName: item.groupName,
-            address: item.address,
-            memberCount: item.memberCount,
-            tags: JSON.stringify(item.tags) as any,
-            // Excel 无坐标信息，默认 0,0（后续可在地图页补点）
-            latitude: "0",
-            longitude: "0",
-            lastVisitAt: null,
-          } as any);
-        success++;
+        if (existing.length === 0) {
+          // 新增
+          const [created] = await db
+            .insert(households)
+            .values({
+              householdName: item.householdName,
+              headName: item.headName,
+              phone: item.phone,
+              groupName: item.groupName,
+              address: item.address,
+              memberCount: item.memberCount,
+              tags: JSON.stringify(item.tags) as any,
+              // Excel 无坐标信息，默认 0,0（后续可在地图页补点）
+              latitude: "0",
+              longitude: "0",
+              lastVisitAt: null,
+            } as any)
+            .returning({ id: households.id });
+          inserted++;
+          if (created) insertedIds.push(created.id);
+        } else {
+          // 更新：仅覆盖有数据的字段，空字段保留原值；标签做合并去重
+          const target = existing[0];
+          const updateFields: Record<string, unknown> = {};
+
+          if (item.hasPhone) {
+            updateFields.phone = item.phone;
+          }
+          if (item.hasAddress) {
+            updateFields.address = item.address;
+          }
+          if (item.tags.length > 0) {
+            const existingTags = parseExistingTags(target.tags);
+            const merged = [...existingTags];
+            for (const t of item.tags) {
+              if (!merged.includes(t)) merged.push(t);
+            }
+            updateFields.tags = JSON.stringify(merged);
+          }
+
+          if (Object.keys(updateFields).length > 0) {
+            await db
+              .update(households)
+              .set(updateFields)
+              .where(eq(households.id, target.id));
+            updated++;
+            updatedIds.push(target.id);
+          } else {
+            // 没有可更新字段，视为跳过
+            skipped++;
+          }
+        }
       } catch (err) {
         failed++;
         errors.push({
@@ -196,23 +293,27 @@ export async function POST(request: Request) {
           reason: err instanceof Error ? err.message : "写入失败",
         });
       }
-      // 记录最近一次成功的样本用于返回预览
     }
 
-    // 取最新导入的几条作为预览（按 id 倒序，取前 5 条）
-    const recent = await db
-      .select()
-      .from(households)
-      .orderBy(desc(households.id))
-      .limit(Math.min(success, 5));
+    // 取最近处理的几条作为预览（更新 + 新增）
+    const previewIds = [...updatedIds, ...insertedIds].slice(-5);
+    let preview: unknown[] = [];
+    if (previewIds.length > 0) {
+      preview = await db
+        .select()
+        .from(households)
+        .orderBy(desc(households.id))
+        .limit(previewIds.length);
+    }
 
     return Response.json({
       total: parsed.length,
-      success,
+      inserted,
+      updated,
       skipped,
       failed,
       errors: errors.slice(0, 20),
-      preview: recent.map(parseRow),
+      preview: preview.map(parseRow),
     });
   } catch (error) {
     console.error("xlsx 导入失败", error);
