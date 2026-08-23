@@ -28,6 +28,8 @@ export function HouseholdForm({
   const [phone, setPhone] = useState(initialData?.phone || "");
   const [groupName, setGroupName] = useState(initialData?.groupName || "第一组");
   const [address, setAddress] = useState(initialData?.address || "");
+  // 标记地址：地图选点逆地理编码自动生成，独立于手填/上传的 address，标记时不覆盖原地址
+  const [markedAddress, setMarkedAddress] = useState(initialData?.markedAddress || "");
   const [memberCount, setMemberCount] = useState(
     initialData?.memberCount || 1
   );
@@ -56,19 +58,20 @@ export function HouseholdForm({
     return () => document.removeEventListener("mousedown", handler);
   }, [tagDropdownOpen]);
 
-  // pickPosition 变化时自行调用逆地理编码填充地址
+  // pickPosition 变化时自行调用逆地理编码填充「标记地址」（markedAddress）
   // 不依赖 MapContainer 的 map click 事件，确保程序化设置坐标（如自动定位）也能反查地址
+  // 注意：写入 markedAddress，不覆盖手填/上传的 address
   useEffect(() => {
     if (!pickPosition) return;
     // pickPosition 可来自地图点击或自动定位，此处集中触发逆地理编码并切换加载态；
     // 依赖项为 pickPosition，与 geocoding 无关，不会引起级联渲染
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     setGeocoding(true);
     let cancelled = false;
     reverseGeocode(pickPosition.lng, pickPosition.lat)
       .then((addr) => {
         if (cancelled) return;
-        if (addr) setAddress(addr);
+        if (addr) setMarkedAddress(addr);
         setGeocoding(false);
       })
       .catch(() => {
@@ -124,6 +127,7 @@ export function HouseholdForm({
       phone: phone.trim(),
       groupName,
       address: address.trim(),
+      markedAddress: markedAddress.trim(),
       memberCount,
       tags,
       latitude: pickPosition?.lat?.toString() || initialData?.latitude || "0",
@@ -167,8 +171,17 @@ export function HouseholdForm({
             </div>
 
             <div className="form-field">
+              <label>家庭地址</label>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="请输入家庭地址"
+              />
+            </div>
+
+            <div className="form-field">
               <label>
-                家庭地址
+                标记地址
                 {geocoding && (
                   <span style={{ marginLeft: 6, color: "#2f80ed", fontSize: 11 }}>
                     <Loader2 size={11} style={{ verticalAlign: "middle", animation: "spin 1s linear infinite" }} />
@@ -177,9 +190,9 @@ export function HouseholdForm({
                 )}
               </label>
               <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder={pickPosition ? "地图选点后自动识别" : "请输入家庭地址"}
+                value={markedAddress}
+                onChange={(e) => setMarkedAddress(e.target.value)}
+                placeholder={pickPosition ? "地图选点后自动识别" : "在地图上选点后自动生成"}
               />
             </div>
 

@@ -56,6 +56,9 @@ export async function PUT(
     if (body.address !== undefined) {
       updateFields.address = body.address.trim();
     }
+    if (body.markedAddress !== undefined) {
+      updateFields.markedAddress = String(body.markedAddress).trim();
+    }
     // memberCount 用 != null 判断，支持设为 0
     if (body.memberCount != null) {
       updateFields.memberCount = Number(body.memberCount);

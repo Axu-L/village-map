@@ -69,6 +69,7 @@ export async function POST(request: Request) {
         phone: phoneTrim,
         groupName: groupNameVal,
         address: body.address.trim(),
+        markedAddress: body.markedAddress != null ? String(body.markedAddress).trim() : "",
         memberCount: mc,
         tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []) as any,
         latitude: String(body.latitude),

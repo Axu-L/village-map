@@ -20,6 +20,8 @@ export type Household = {
   phone: string;
   groupName: string;
   address: string;
+  // 地图标记点逆地理编码得到的地址，与上传/手填的 address 分离，标记时不覆盖原地址
+  markedAddress?: string | null;
   memberCount: number;
   tags: Tag[];
   latitude: string;

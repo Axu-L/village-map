@@ -7,6 +7,7 @@ export const households = sqliteTable("households", {
   phone: text("phone").notNull(),
   groupName: text("group_name").notNull(),
   address: text("address").notNull(),
+  markedAddress: text("marked_address"),
   memberCount: integer("member_count").notNull().default(1),
   tags: text("tags").notNull().default("[]"),
   latitude: text("latitude").notNull(),

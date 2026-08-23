@@ -30,6 +30,7 @@ export function initDb() {
       phone TEXT NOT NULL,
       group_name TEXT NOT NULL,
       address TEXT NOT NULL,
+      marked_address TEXT,
       member_count INTEGER NOT NULL DEFAULT 1,
       tags TEXT NOT NULL DEFAULT '[]',
       latitude TEXT NOT NULL,
@@ -82,6 +83,13 @@ export function initDb() {
   // 为已有的 visits 表添加 images 字段（兼容旧数据库）
   try {
     sqlite.exec(`ALTER TABLE visits ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
+  } catch {
+    // 字段已存在，忽略错误
+  }
+
+  // 为已有的 households 表添加 marked_address 字段（标记地址，兼容旧数据库）
+  try {
+    sqlite.exec(`ALTER TABLE households ADD COLUMN marked_address TEXT;`);
   } catch {
     // 字段已存在，忽略错误
   }

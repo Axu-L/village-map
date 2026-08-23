@@ -335,6 +335,11 @@ export default function HouseholdDetailPage({
             <InfoItem icon={<User size={15} />} label="户主" value={household.headName} />
             <InfoItem icon={<Phone size={15} />} label="电话" value={maskPhone(household.phone)} />
             <InfoItem icon={<MapPin size={15} />} label="地址" value={household.address} />
+            <InfoItem
+              icon={<MapPin size={15} />}
+              label="标记地址"
+              value={household.markedAddress || "未标记"}
+            />
             <InfoItem icon={<Home size={15} />} label="组别" value={household.groupName} />
             <InfoItem
               icon={<Navigation size={15} />}
