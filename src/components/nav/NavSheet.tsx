@@ -40,6 +40,9 @@ export function NavSheet({
     dragging: false,
     moved: false,
   });
+  // 滚轮节流时间戳：一次滚轮手势会产生多次 wheel 事件，
+  // 用冷却时间限制只切换一档，避免直接从 peek 跳到 full（或反向）。
+  const lastWheelTs = useRef(0);
 
   const nextStage = useCallback(() => {
     setStage((s) => {
@@ -117,9 +120,16 @@ export function NavSheet({
   // - 向上滚动（deltaY<0）→ 展开到下一档（peek→half→full）
   // - 向下滚动（deltaY>0）→ 收起到上一档（full→half→peek）
   //
+  // 滚轮事件触发频率很高，一次手势会产生多次 wheel 事件。
+  // 用节流冷却（400ms，与 CSS 过渡 0.32s 匹配）确保一次手势只切一档，
+  // 否则会连续触发 nextStage/prevStage，直接从 peek 跳到 full（或反向）。
+  //
   // header 本身不可滚动：滚轮直接切换档位，保证用户在 header（按钮所在区域）滚动时
   // 一定能切到任意档位（包括 peek），不会因为内容区未到底而被拦截。
   const onHeaderWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTs.current < 400) return;
+    lastWheelTs.current = now;
     if (e.deltaY < 0) nextStage(); // 向上滚 → 展开
     else prevStage(); // 向下滚 → 收起
   };
@@ -135,7 +145,10 @@ export function NavSheet({
       if (e.deltaY > 0 && !atBottom) return;
       if (e.deltaY < 0 && !atTop) return;
     }
-    // 内容已到边界 → 切换抽屉档位
+    // 内容已到边界 → 切换抽屉档位（同样节流，避免一次手势连切多档）
+    const now = Date.now();
+    if (now - lastWheelTs.current < 400) return;
+    lastWheelTs.current = now;
     if (e.deltaY < 0) nextStage(); // 向上滚 → 展开
     else prevStage(); // 向下滚 → 收起
   };
