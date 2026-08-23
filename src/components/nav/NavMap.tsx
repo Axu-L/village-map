@@ -39,7 +39,13 @@ export function NavMap({
   // 最近一次绘制的路线覆盖物（路线折线 + 起终点标记），供抽屉档位变化时重算视野
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lastRouteOverlaysRef = useRef<any[]>([]);
+  // 卫星图层和路网图层引用（用于地图类型切换）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const satelliteLayerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roadNetLayerRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapType, setMapType] = useState<"standard" | "satellite">("satellite");
   const [locating, setLocating] = useState(params.origin === null);
 
   useEffect(() => {
@@ -199,6 +205,15 @@ export function NavMap({
           showControlButton: true,
         })
       );
+
+      // 预创建卫星图层和路网图层，默认显示卫星图（带路网）
+      satelliteLayerRef.current = new AMap.TileLayer.Satellite();
+      roadNetLayerRef.current = new AMap.TileLayer.RoadNet();
+      satelliteLayerRef.current.setMap(map);
+      roadNetLayerRef.current.setMap(map);
+      satelliteLayerRef.current.show();
+      roadNetLayerRef.current.show();
+
       mapRef.current = map;
       setMapReady(true);
 
@@ -531,6 +546,19 @@ export function NavMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 切换地图类型：标准矢量图 / 卫星图（带路网）
+  const handleToggleMapType = () => {
+    const next = mapType === "standard" ? "satellite" : "standard";
+    setMapType(next);
+    if (next === "satellite") {
+      satelliteLayerRef.current?.show();
+      roadNetLayerRef.current?.show();
+    } else {
+      satelliteLayerRef.current?.hide();
+      roadNetLayerRef.current?.hide();
+    }
+  };
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div
@@ -574,6 +602,24 @@ export function NavMap({
           正在定位当前位置...
         </div>
       )}
+      {/* 地图类型切换按钮：标准 / 卫星 */}
+      <button
+        className="map-type-btn"
+        onClick={handleToggleMapType}
+        title={mapType === "standard" ? "切换到卫星图" : "切换到标准图"}
+      >
+        {mapType === "standard" ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2f80ed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }

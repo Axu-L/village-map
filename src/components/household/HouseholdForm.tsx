@@ -2,7 +2,7 @@
 
 import { useState, FormEvent, useEffect, useRef } from "react";
 import { allTags, getTagColor } from "@/lib/tags";
-import { X, MapPin, Check, Loader2, ChevronDown, Minus, Plus } from "lucide-react";
+import { X, Check, Loader2, ChevronDown, Minus, Plus } from "lucide-react";
 import { MapContainer } from "@/components/map/MapContainer";
 import { GROUP_NAMES } from "@/lib/constants";
 import { DEFAULT_CENTER, reverseGeocode } from "@/lib/amap";
@@ -296,23 +296,6 @@ export function HouseholdForm({
                     <Plus size={14} />
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <div className="form-field">
-              <label>地图定位</label>
-              <div className="pick-location-hint">
-                {pickPosition ? (
-                  <span className="pick-done">
-                    <MapPin size={14} />
-                    已选择：{pickPosition.lng.toFixed(6)},{" "}
-                    {pickPosition.lat.toFixed(6)}
-                  </span>
-                ) : (
-                  <span className="pick-hint">
-                    请在右侧地图上点击选择住户位置
-                  </span>
-                )}
               </div>
             </div>
 

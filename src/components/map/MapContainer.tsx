@@ -62,7 +62,7 @@ export function MapContainer({
   visitHouseholds = [],
   onArriveHousehold,
   searchKey,
-  defaultMapType = "standard",
+  defaultMapType = "satellite",
 }: MapContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
