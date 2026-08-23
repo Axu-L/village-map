@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import type { Household, Tag } from "@/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 interface ParsedRow {
@@ -29,6 +29,16 @@ export default function TransferPage() {
     success: number;
     skipped: number;
     failed: number;
+  } | null>(null);
+
+  // xlsx 导入状态
+  const [xlsxImporting, setXlsxImporting] = useState(false);
+  const [xlsxResult, setXlsxResult] = useState<{
+    total: number;
+    success: number;
+    skipped: number;
+    failed: number;
+    preview: Household[];
   } | null>(null);
 
   useEffect(() => {
@@ -220,6 +230,52 @@ export default function TransferPage() {
     // 清理
     setPreviewRows([]);
     setSelectedFile(null);
+  };
+
+  // xlsx 文件导入：直接上传到 /api/households/import 由服务端解析
+  const handleXlsxChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    if (ext !== ".xlsx" && ext !== ".xls") {
+      toast("仅支持 .xlsx / .xls 格式", "error");
+      e.target.value = "";
+      return;
+    }
+
+    setXlsxImporting(true);
+    setXlsxResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(apiUrl("/api/households/import"), {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "导入失败");
+      }
+
+      setXlsxResult(data);
+      toast(
+        `导入完成：成功 ${data.success} 条，跳过 ${data.skipped} 条，失败 ${data.failed} 条`,
+        data.success > 0 ? "success" : "error"
+      );
+
+      // 刷新列表
+      apiFetch("/api/households")
+        .then((d) => setHouseholds(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "导入失败", "error");
+    } finally {
+      setXlsxImporting(false);
+      e.target.value = "";
+    }
   };
 
   if (loading) {
@@ -502,6 +558,197 @@ export default function TransferPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* xlsx 导入卡片（三留守及独居老人信息登记表格式） */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 14,
+          padding: "24px 28px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          marginTop: 20,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: "#e67e2215",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#e67e22",
+              flexShrink: 0,
+            }}
+          >
+            <FileSpreadsheet size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#2b405b" }}>
+              Excel 登记表导入
+            </div>
+            <div style={{ fontSize: 12, color: "#8a95a8" }}>
+              支持《三留守及独居老人信息登记表》.xlsx 格式，自动识别身份类别与组别
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            marginTop: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <label
+            style={{
+              padding: "10px 24px",
+              borderRadius: 10,
+              border: "2px dashed #e67e22",
+              background: "#fff8f0",
+              color: "#e67e22",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: xlsxImporting ? "wait" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              opacity: xlsxImporting ? 0.6 : 1,
+            }}
+          >
+            {xlsxImporting ? (
+              <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+            ) : (
+              <Upload size={16} />
+            )}
+            {xlsxImporting ? "导入中..." : "选择 xlsx 文件"}
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={handleXlsxChange}
+              disabled={xlsxImporting}
+            />
+          </label>
+          <span style={{ fontSize: 12, color: "#8a95a8" }}>
+            列格式：序号 / 身份类别 / 组别 / 姓名 / 性别 / 年龄 / 联系电话 / 家庭住址 / 备注
+          </span>
+        </div>
+
+        {/* xlsx 导入结果 */}
+        {xlsxResult && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "14px 16px",
+              background: "#f8f9fb",
+              borderRadius: 10,
+              border: "1px solid #e4e8ef",
+            }}
+          >
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  background: "rgba(39,174,96,0.1)",
+                  color: "#27ae60",
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                <CheckCircle size={14} />
+                成功 {xlsxResult.success}
+              </div>
+              {xlsxResult.skipped > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: "rgba(242,153,74,0.1)",
+                    color: "#f2994a",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <XCircle size={14} />
+                  跳过 {xlsxResult.skipped}（重复）
+                </div>
+              )}
+              {xlsxResult.failed > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: "rgba(235,87,87,0.1)",
+                    color: "#eb5757",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <XCircle size={14} />
+                  失败 {xlsxResult.failed}
+                </div>
+              )}
+              <span style={{ fontSize: 12, color: "#8a95a8", alignSelf: "center" }}>
+                共解析 {xlsxResult.total} 条
+              </span>
+            </div>
+
+            {xlsxResult.preview && xlsxResult.preview.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#5a6577", marginBottom: 6 }}>
+                  导入预览（最近 {xlsxResult.preview.length} 条）
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "#8a95a8", textAlign: "left" }}>
+                        <th style={{ padding: "4px 8px", fontWeight: 600 }}>户名</th>
+                        <th style={{ padding: "4px 8px", fontWeight: 600 }}>组别</th>
+                        <th style={{ padding: "4px 8px", fontWeight: 600 }}>电话</th>
+                        <th style={{ padding: "4px 8px", fontWeight: 600 }}>分类</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {xlsxResult.preview.map((h) => (
+                        <tr key={h.id} style={{ color: "#2b405b" }}>
+                          <td style={{ padding: "4px 8px" }}>{h.householdName}</td>
+                          <td style={{ padding: "4px 8px" }}>{h.groupName}</td>
+                          <td style={{ padding: "4px 8px" }}>{h.phone || "—"}</td>
+                          <td style={{ padding: "4px 8px" }}>
+                            {h.tags.length > 0 ? h.tags.join("、") : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Responsive: stack on mobile */}

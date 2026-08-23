@@ -514,6 +514,13 @@ export default function PeoplePage() {
         .people-btn-delete:hover { background: rgba(235,87,87,0.18) !important; }
         .people-tag-scroller { scrollbar-width: none; -ms-overflow-style: none; }
         .people-tag-scroller::-webkit-scrollbar { display: none; }
+        /* 桌面端：人员分类标签换行展示，避免一栏横向滚动导致显示不全 */
+        @media (min-width: 768px) {
+          .people-tag-scroller {
+            flex-wrap: wrap !important;
+            overflow-x: visible !important;
+          }
+        }
       `}</style>
     </div>
   );
