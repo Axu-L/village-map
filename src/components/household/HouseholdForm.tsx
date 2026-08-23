@@ -204,7 +204,7 @@ export function HouseholdForm({
               </div>
 
               {/* 特殊群体 —— 多选下拉 */}
-              <div className="form-field" ref={tagDropdownRef}>
+              <div className="form-field multi-select-field" ref={tagDropdownRef}>
                 <label>特殊群体</label>
                 <button
                   type="button"
@@ -334,6 +334,7 @@ export function HouseholdForm({
               onMapClick={onMapClick}
               pickingMode={true}
               pickPosition={pickPosition}
+              defaultMapType="satellite"
             />
           </div>
         </div>

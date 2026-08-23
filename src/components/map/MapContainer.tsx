@@ -44,6 +44,8 @@ interface MapContainerProps {
   onArriveHousehold?: (household: Household) => void;
   // 搜索词：变化时触发地图自动缩放到匹配标记（标签筛选不触发）
   searchKey?: string;
+  // 初始地图类型：默认标准矢量图，编辑/新增弹窗可传 "satellite" 默认卫星图
+  defaultMapType?: "standard" | "satellite";
 }
 
 export function MapContainer({
@@ -60,6 +62,7 @@ export function MapContainer({
   visitHouseholds = [],
   onArriveHousehold,
   searchKey,
+  defaultMapType = "standard",
 }: MapContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +93,7 @@ export function MapContainer({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roadNetLayerRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [mapType, setMapType] = useState<"standard" | "satellite">("standard");
+  const [mapType, setMapType] = useState<"standard" | "satellite">(defaultMapType);
   // 走访模式：已自动弹窗过的住户ID，防止重复弹窗
   const visitedIdsRef = useRef<Set<number>>(new Set());
   const visitWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -145,9 +148,14 @@ export function MapContainer({
           roadNetLayerRef.current = new AMap.TileLayer.RoadNet();
           satelliteLayerRef.current.setMap(map);
           roadNetLayerRef.current.setMap(map);
-          // 默认隐藏（标准矢量图）
-          satelliteLayerRef.current.hide();
-          roadNetLayerRef.current.hide();
+          // 默认地图类型：卫星图则显示卫星+路网，否则隐藏（标准矢量图）
+          if (defaultMapType === "satellite") {
+            satelliteLayerRef.current.show();
+            roadNetLayerRef.current.show();
+          } else {
+            satelliteLayerRef.current.hide();
+            roadNetLayerRef.current.hide();
+          }
 
           // 缩放/旋转/复位控件（右上角）
           map.addControl(
