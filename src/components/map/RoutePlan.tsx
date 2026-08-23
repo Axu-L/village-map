@@ -24,7 +24,7 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
     lat: number;
   } | null>(null);
   const [currentAddress, setCurrentAddress] = useState("定位中...");
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   // 使用 AMap 定位获取当前位置（与地图坐标系一致 GCJ02）
   useEffect(() => {
@@ -167,21 +167,30 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
         </header>
 
         <div className="route-plan-body">
-          {/* 出行方式 + 语音导航 并列一行 */}
+          {/* 出行方式：独占一行 */}
+          <div className="route-section">
+            <span className="route-label">出行方式</span>
+            <div className="route-mode-switch">
+              {modeOptions.map((opt) => (
+                <button
+                  key={opt.key}
+                  className={`mode-btn ${travelMode === opt.key ? "active" : ""}`}
+                  onClick={() => setTravelMode(opt.key)}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 起点 + 语音导航 并列一行：起点文字过长省略，确保不换行 */}
           <div className="route-row-2col">
             <div className="route-section">
-              <span className="route-label">出行方式</span>
-              <div className="route-mode-switch">
-                {modeOptions.map((opt) => (
-                  <button
-                    key={opt.key}
-                    className={`mode-btn ${travelMode === opt.key ? "active" : ""}`}
-                    onClick={() => setTravelMode(opt.key)}
-                  >
-                    {opt.icon}
-                    {opt.label}
-                  </button>
-                ))}
+              <span className="route-label">起点</span>
+              <div className="route-origin">
+                <MapPin size={14} />
+                <span className="route-origin-text">{currentAddress}</span>
               </div>
             </div>
 
@@ -194,14 +203,6 @@ export function RoutePlan({ households, onClose, onPlan }: RoutePlanProps) {
                 {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                 <span>{voiceEnabled ? "已开启" : "已关闭"}</span>
               </button>
-            </div>
-          </div>
-
-          <div className="route-section">
-            <span className="route-label">起点</span>
-            <div className="route-origin">
-              <MapPin size={14} />
-              <span className="route-origin-text">{currentAddress}</span>
             </div>
           </div>
 

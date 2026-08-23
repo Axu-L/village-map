@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Search, Users, Home, Trash2, Pencil, CheckSquare } from "lucide-react";
+import { Search, Users, Home, Trash2, Pencil, CheckSquare, Upload, Loader2 } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { allTags, getTagColor, tagIconMap } from "@/lib/tags";
 import { maskPhone } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { HouseholdForm } from "@/components/household/HouseholdForm";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import type { Household, Tag } from "@/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 export default function PeoplePage() {
   const { toast } = useToast();
@@ -31,6 +31,54 @@ export default function PeoplePage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
+
+  // xlsx 导入状态（人员管理页快捷导入入口）
+  const [xlsxImporting, setXlsxImporting] = useState(false);
+  const xlsxInputRef = useRef<HTMLInputElement>(null);
+
+  // xlsx 导入：上传到 /api/households/import 由服务端解析
+  const handleXlsxChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    if (ext !== ".xlsx" && ext !== ".xls") {
+      toast("仅支持 .xlsx / .xls 格式", "error");
+      e.target.value = "";
+      return;
+    }
+
+    setXlsxImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(apiUrl("/api/households/import"), {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "导入失败");
+      }
+
+      toast(
+        `导入完成：新增 ${data.inserted} 条，更新 ${data.updated} 条，跳过 ${data.skipped} 条，失败 ${data.failed} 条`,
+        data.inserted > 0 || data.updated > 0 ? "success" : "error"
+      );
+
+      // 刷新列表
+      apiFetch("/api/households")
+        .then((d) => setHouseholds(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "导入失败", "error");
+    } finally {
+      setXlsxImporting(false);
+      e.target.value = "";
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -198,27 +246,63 @@ export default function PeoplePage() {
           人员管理
         </h1>
         {!selectMode ? (
-          <button
-            onClick={() => toggleSelectMode(true)}
-            disabled={households.length === 0}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "1px solid #e4e8ef",
-              background: "#fff",
-              color: "#2b405b",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: households.length === 0 ? "not-allowed" : "pointer",
-              opacity: households.length === 0 ? 0.5 : 1,
-            }}
-          >
-            <CheckSquare size={15} />
-            批量管理
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => toggleSelectMode(true)}
+              disabled={households.length === 0}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 16px",
+                borderRadius: 10,
+                border: "1px solid #e4e8ef",
+                background: "#fff",
+                color: "#2b405b",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: households.length === 0 ? "not-allowed" : "pointer",
+                opacity: households.length === 0 ? 0.5 : 1,
+              }}
+            >
+              <CheckSquare size={15} />
+              批量管理
+            </button>
+            <button
+              onClick={() => xlsxInputRef.current?.click()}
+              disabled={xlsxImporting}
+              title="导入《三留守及独居老人信息登记表》.xlsx"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 16px",
+                borderRadius: 10,
+                border: "1px solid #e67e22",
+                background: xlsxImporting ? "#fff8f0" : "#fff",
+                color: "#e67e22",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: xlsxImporting ? "wait" : "pointer",
+                opacity: xlsxImporting ? 0.7 : 1,
+              }}
+            >
+              {xlsxImporting ? (
+                <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
+              ) : (
+                <Upload size={15} />
+              )}
+              {xlsxImporting ? "导入中" : "导入数据"}
+            </button>
+            <input
+              ref={xlsxInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={handleXlsxChange}
+              disabled={xlsxImporting}
+            />
+          </div>
         ) : (
           <button
             onClick={() => toggleSelectMode(false)}

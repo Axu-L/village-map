@@ -1137,6 +1137,7 @@ select:focus-visible {
 /* 出行方式 + 语音导航 并列一行 */
 .route-row-2col {
   display: flex;
+  flex-wrap: nowrap;
   gap: 18px;
   align-items: flex-start;
   margin-bottom: 20px;
@@ -1146,10 +1147,12 @@ select:focus-visible {
   flex: 1;
   min-width: 0;
 }
-/* 出行方式占主，语音导航占内容宽度 */
+/* 第一列（起点）占主，文字过长省略 */
 .route-row-2col .route-section:first-child {
   flex: 1 1 auto;
+  min-width: 0;
 }
+/* 第二列（语音导航）固定宽度，不收缩 */
 .route-row-2col .route-section:last-child {
   flex: 0 0 auto;
 }
@@ -1211,6 +1214,8 @@ select:focus-visible {
   color: #3e5068;
   background: #f9fbfd;
   font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
 }
 .route-origin svg {
   color: #2f80ed;
@@ -1855,6 +1860,8 @@ select:focus-visible {
   font-weight: 600;
   cursor: pointer;
   transition: 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .voice-toggle.active {
   color: #2f80ed;
