@@ -34,7 +34,6 @@ export function NavSheet({
   const [stage, setStage] = useState<Stage>("half");
   const [dragging, setDragging] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({
     startY: 0,
     startStage: stage,
@@ -71,11 +70,9 @@ export function NavSheet({
     );
   };
 
-  // 嵌套滚动手势仲裁：
+  // 嵌套滚动手势仲裁（移动端 touch）：
   // - 在内容区向下拖动时，若已滚动到顶部（scrollTop===0），则把拖动让给抽屉收起
   // - 在内容区向上拖动时，若已滚动到底部，则把拖动让给抽屉展开
-  // 注意：React 17+ 的 onTouchMove 是 passive 监听，preventDefault 无效，
-  // 因此改用 ref + 原生 addEventListener({passive:false}) 绑定，确保能阻止默认滚动。
   const onTouchStart = (e: React.TouchEvent) => {
     dragState.current = {
       startY: e.touches[0].clientY,
@@ -85,6 +82,19 @@ export function NavSheet({
     };
     setDragging(true);
     notifyDrag(true);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!dragState.current.dragging) return;
+    const dy = e.touches[0].clientY - dragState.current.startY;
+    if (Math.abs(dy) > 8) dragState.current.moved = true;
+
+    const el = contentRef.current;
+    const atTop = !el || el.scrollTop <= 0;
+    // 向下拖且内容已在顶部 → 阻止内容滚动，让抽屉响应（收起）
+    if (dy > 0 && atTop) {
+      e.preventDefault();
+    }
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
@@ -103,29 +113,43 @@ export function NavSheet({
     }
   };
 
-  // 原生非被动 touchmove：绑定在抽屉根节点，覆盖把手和内容区两处拖拽。
-  // - 始终更新 moved 标记，供 onTouchEnd 判断是否触发档位切换
-  // - 内容区已滚到顶部时向下拖 → 阻止内容默认滚动，把手势让给抽屉收起
-  useEffect(() => {
-    const sheet = sheetRef.current;
-    const content = contentRef.current;
-    if (!sheet) return;
-
-    const nativeMove = (e: TouchEvent) => {
-      if (!dragState.current.dragging) return;
-      const dy = e.touches[0].clientY - dragState.current.startY;
-      if (Math.abs(dy) > 8) dragState.current.moved = true;
-
-      // 仅当拖拽发生在内容区且内容已到顶部时，阻止默认滚动以让抽屉响应
-      const atTop = !content || content.scrollTop <= 0;
-      if (dy > 0 && atTop) {
-        e.preventDefault();
-      }
+  // 电脑端鼠标拖拽：touch 事件在桌面浏览器不触发，需用 mouse 事件实现同样的三段式档位切换。
+  // 在 window 上监听 mousemove/mouseup，确保鼠标移出抽屉范围也能继续拖拽并正确结束。
+  const onMouseDown = (e: React.MouseEvent) => {
+    // 忽略右键和中键
+    if (e.button !== 0) return;
+    dragState.current = {
+      startY: e.clientY,
+      startStage: stage,
+      dragging: true,
+      moved: false,
     };
+    setDragging(true);
+    notifyDrag(true);
 
-    sheet.addEventListener("touchmove", nativeMove, { passive: false });
-    return () => sheet.removeEventListener("touchmove", nativeMove);
-  }, []);
+    const onMove = (ev: MouseEvent) => {
+      if (!dragState.current.dragging) return;
+      const dy = ev.clientY - dragState.current.startY;
+      if (Math.abs(dy) > 8) dragState.current.moved = true;
+    };
+    const onUp = (ev: MouseEvent) => {
+      if (dragState.current.dragging) {
+        const dy = ev.clientY - dragState.current.startY;
+        dragState.current.dragging = false;
+        setDragging(false);
+        notifyDrag(false);
+        if (dragState.current.moved) {
+          const threshold = 30;
+          if (dy < -threshold) nextStage(); // 上拖 → 展开
+          else if (dy > threshold) prevStage(); // 下拖 → 收起
+        }
+      }
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const distance = info?.distance ?? "—";
   const time = info?.time ?? "—";
@@ -135,12 +159,14 @@ export function NavSheet({
   const modeLabel = mode === "driving" ? "驾车" : mode === "walking" ? "步行" : "骑行";
 
   return (
-    <div className={`nav-sheet stage-${stage}${dragging ? " dragging" : ""}`} data-stage={stage} ref={sheetRef}>
+    <div className={`nav-sheet stage-${stage}${dragging ? " dragging" : ""}`} data-stage={stage}>
       {/* 拖拽把手 + 摘要（peek 始终可见） */}
       <div
         className="nav-sheet-header"
         onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
       >
         <div className="nav-sheet-grabber" />
         <div className="nav-sheet-summary">
@@ -205,7 +231,9 @@ export function NavSheet({
         className="nav-sheet-content"
         ref={contentRef}
         onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
       >
         {steps.length > 0 && (
           <section className="nav-sheet-section">

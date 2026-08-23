@@ -1686,6 +1686,13 @@ select:focus-visible {
   flex-shrink: 0;
   padding: 0 18px 12px;
   touch-action: none;
+  /* 桌面端提示可拖拽，拖拽中禁用文本选择 */
+  cursor: grab;
+  user-select: none;
+}
+.nav-sheet.dragging .nav-sheet-header,
+.nav-sheet.dragging .nav-sheet-content {
+  cursor: grabbing;
 }
 /* 桌面端宽屏：抽屉占满整页宽度，内部内容居中限宽以保持可读性 */
 @media (min-width: 768px) {
