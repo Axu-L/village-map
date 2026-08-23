@@ -113,43 +113,40 @@ export function NavSheet({
     }
   };
 
-  // 电脑端鼠标拖拽：touch 事件在桌面浏览器不触发，需用 mouse 事件实现同样的三段式档位切换。
-  // 在 window 上监听 mousemove/mouseup，确保鼠标移出抽屉范围也能继续拖拽并正确结束。
-  const onMouseDown = (e: React.MouseEvent) => {
-    // 忽略右键和中键
-    if (e.button !== 0) return;
-    dragState.current = {
-      startY: e.clientY,
-      startStage: stage,
-      dragging: true,
-      moved: false,
-    };
-    setDragging(true);
-    notifyDrag(true);
-
-    const onMove = (ev: MouseEvent) => {
-      if (!dragState.current.dragging) return;
-      const dy = ev.clientY - dragState.current.startY;
-      if (Math.abs(dy) > 8) dragState.current.moved = true;
-    };
-    const onUp = (ev: MouseEvent) => {
-      if (dragState.current.dragging) {
-        const dy = ev.clientY - dragState.current.startY;
-        dragState.current.dragging = false;
-        setDragging(false);
-        notifyDrag(false);
-        if (dragState.current.moved) {
-          const threshold = 30;
-          if (dy < -threshold) nextStage(); // 上拖 → 展开
-          else if (dy > threshold) prevStage(); // 下拖 → 收起
-        }
-      }
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+  // 电脑端滚轮切换档位（桌面浏览器没有 touch 事件，用滚轮实现三段式档位切换）
+  // - 向上滚动（deltaY<0）→ 展开到下一档（peek→half→full）
+  // - 向下滚动（deltaY>0）→ 收起到上一档（full→half→peek）
+  //
+  // header 本身不可滚动：滚轮直接切换档位，保证用户在 header（按钮所在区域）滚动时
+  // 一定能切到任意档位（包括 peek），不会因为内容区未到底而被拦截。
+  const onHeaderWheel = (e: React.WheelEvent) => {
+    if (e.deltaY < 0) nextStage(); // 向上滚 → 展开
+    else prevStage(); // 向下滚 → 收起
   };
+
+  // content 可滚动：未到顶/底优先让内容滚动，到边界才切换抽屉档位（与移动端手势仲裁一致）
+  const onContentWheel = (e: React.WheelEvent) => {
+    const content = contentRef.current;
+    if (content) {
+      const atTop = content.scrollTop <= 0;
+      const atBottom =
+        content.scrollTop + content.clientHeight >= content.scrollHeight - 1;
+      // 向下滚且未到底 → 内容滚动；向上滚且未到顶 → 内容滚动
+      if (e.deltaY > 0 && !atBottom) return;
+      if (e.deltaY < 0 && !atTop) return;
+    }
+    // 内容已到边界 → 切换抽屉档位
+    if (e.deltaY < 0) nextStage(); // 向上滚 → 展开
+    else prevStage(); // 向下滚 → 收起
+  };
+
+  // 切换按钮：在 peek → half → full → peek 之间循环
+  const cycleStage = useCallback(() => {
+    setStage((s) => {
+      const i = STAGE_ORDER.indexOf(s);
+      return STAGE_ORDER[(i + 1) % STAGE_ORDER.length];
+    });
+  }, []);
 
   const distance = info?.distance ?? "—";
   const time = info?.time ?? "—";
@@ -166,7 +163,7 @@ export function NavSheet({
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onMouseDown={onMouseDown}
+        onWheel={onHeaderWheel}
       >
         <div className="nav-sheet-grabber" />
         <div className="nav-sheet-summary">
@@ -198,8 +195,9 @@ export function NavSheet({
             </button>
             <button
               className="nav-sheet-icon-btn"
-              aria-label={stage === "full" ? "收起" : "展开"}
-              onClick={() => (stage === "full" ? prevStage() : nextStage())}
+              aria-label={stage === "peek" ? "展开" : "收起"}
+              title="切换抽屉高度"
+              onClick={cycleStage}
             >
               {stage === "full" ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
             </button>
@@ -233,7 +231,7 @@ export function NavSheet({
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onMouseDown={onMouseDown}
+        onWheel={onContentWheel}
       >
         {steps.length > 0 && (
           <section className="nav-sheet-section">
