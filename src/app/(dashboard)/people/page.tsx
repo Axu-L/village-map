@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Users, Home, Trash2, Pencil } from "lucide-react";
+import { Search, Users, Home, Trash2, Pencil, CheckSquare } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { allTags, getTagColor, tagIconMap } from "@/lib/tags";
 import { maskPhone } from "@/lib/utils";
@@ -25,6 +25,12 @@ export default function PeoplePage() {
     lat: number;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
+  // 批量选择状态
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +70,55 @@ export default function PeoplePage() {
     } finally {
       setDeleteTarget(null);
     }
+  };
+
+  // 进入/退出选择模式
+  const toggleSelectMode = (on: boolean) => {
+    setSelectMode(on);
+    if (!on) setSelectedIds(new Set());
+  };
+
+  // 切换单个选中
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // 全选当前筛选结果
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(filtered.map((h) => h.id)));
+  };
+
+  // 批量删除
+  const confirmBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBatchDeleting(true);
+    const ids = Array.from(selectedIds);
+    let success = 0;
+    let failed = 0;
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          await apiFetch(`/api/households/${id}`, { method: "DELETE" });
+          success++;
+        } catch {
+          failed++;
+        }
+      })
+    );
+    setBatchDeleting(false);
+    setBatchConfirmOpen(false);
+    setHouseholds((prev) => prev.filter((h) => !selectedIds.has(h.id)));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    toast(
+      `批量删除完成：成功 ${success} 条${failed > 0 ? `，失败 ${failed} 条` : ""}`,
+      success > 0 ? "success" : "error"
+    );
   };
 
   // 打开编辑弹窗：预填位置
@@ -123,16 +178,139 @@ export default function PeoplePage() {
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1100, margin: "0 auto" }}>
-      <h1
+      <div
         style={{
-          fontSize: 22,
-          fontWeight: 800,
-          color: "#2b405b",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
           margin: "0 0 20px",
         }}
       >
-        人员管理
-      </h1>
+        <h1
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            color: "#2b405b",
+            margin: 0,
+          }}
+        >
+          人员管理
+        </h1>
+        {!selectMode ? (
+          <button
+            onClick={() => toggleSelectMode(true)}
+            disabled={households.length === 0}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "1px solid #e4e8ef",
+              background: "#fff",
+              color: "#2b405b",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: households.length === 0 ? "not-allowed" : "pointer",
+              opacity: households.length === 0 ? 0.5 : 1,
+            }}
+          >
+            <CheckSquare size={15} />
+            批量管理
+          </button>
+        ) : (
+          <button
+            onClick={() => toggleSelectMode(false)}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "1px solid #e4e8ef",
+              background: "#fff",
+              color: "#5a6577",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            退出选择
+          </button>
+        )}
+      </div>
+
+      {/* 批量操作工具栏 */}
+      {selectMode && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 16px",
+            marginBottom: 16,
+            borderRadius: 10,
+            background: "#fff",
+            border: "1px solid #e4e8ef",
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#2b405b", fontWeight: 600 }}>
+            已选 {selectedIds.size} / {filtered.length} 条
+          </span>
+          <button
+            onClick={selectAllFiltered}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid #e4e8ef",
+              background: "#fff",
+              color: "#2f80ed",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            全选当前筛选
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            disabled={selectedIds.size === 0}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid #e4e8ef",
+              background: "#fff",
+              color: "#5a6577",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: selectedIds.size === 0 ? "not-allowed" : "pointer",
+              opacity: selectedIds.size === 0 ? 0.5 : 1,
+            }}
+          >
+            清空选择
+          </button>
+          <button
+            onClick={() => setBatchConfirmOpen(true)}
+            disabled={selectedIds.size === 0}
+            style={{
+              marginLeft: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "none",
+              background: selectedIds.size === 0 ? "#f0c0c0" : "#eb5757",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: selectedIds.size === 0 ? "not-allowed" : "pointer",
+            }}
+          >
+            <Trash2 size={13} />
+            批量删除
+          </button>
+        </div>
+      )}
 
       {/* Search bar */}
       <div
@@ -286,12 +464,21 @@ export default function PeoplePage() {
       >
         {filtered.map((h) => {
           const tags = Array.isArray(h.tags) ? h.tags : [];
+          const selected = selectedIds.has(h.id);
+          // 选择模式下用 div 包裹，避免点击触发跳转到详情页
+          const Wrapper = selectMode ? "div" : Link;
+          const wrapperProps = selectMode
+            ? {
+                onClick: (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  toggleSelect(h.id);
+                },
+                style: { textDecoration: "none", cursor: "pointer" },
+              }
+            : { href: `/household/${h.id}`, style: { textDecoration: "none" } };
           return (
-            <Link
-              key={h.id}
-              href={`/household/${h.id}`}
-              style={{ textDecoration: "none" }}
-            >
+            // @ts-expect-error Wrapper 是 Link 或 div，props 不同但运行时安全
+            <Wrapper key={h.id} {...wrapperProps}>
               <div
                 className="people-card"
                 style={{
@@ -300,11 +487,42 @@ export default function PeoplePage() {
                   padding: "18px 20px",
                   boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
                   cursor: "pointer",
-                  transition: "box-shadow 0.2s",
-                  border: "1px solid #f0f2f5",
+                  transition: "box-shadow 0.2s, border-color 0.15s",
+                  border: selectMode
+                    ? selected
+                      ? "2px solid #2f80ed"
+                      : "2px solid #f0f2f5"
+                    : "1px solid #f0f2f5",
                   position: "relative",
                 }}
               >
+                {/* 选择模式下的复选标记 */}
+                {selectMode && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      border: selected ? "none" : "2px solid #cfd6e0",
+                      background: selected ? "#2f80ed" : "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      zIndex: 2,
+                    }}
+                  >
+                    {selected && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                )}
+
                 {/* Household name & head */}
                 <div
                   style={{
@@ -373,65 +591,67 @@ export default function PeoplePage() {
                   ))}
                 </div>
 
-                {/* Last visit + 右下角操作按钮 */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-end",
-                    justifyContent: "space-between",
-                    marginTop: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 11, color: "#b0b8c8" }}>
-                    {h.lastVisitAt
-                      ? `最近走访: ${new Date(h.lastVisitAt).toLocaleDateString("zh-CN")}`
-                      : "暂无走访记录"}
+                {/* Last visit + 右下角操作按钮（选择模式下隐藏操作按钮） */}
+                {!selectMode && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "space-between",
+                      marginTop: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: "#b0b8c8" }}>
+                      {h.lastVisitAt
+                        ? `最近走访: ${new Date(h.lastVisitAt).toLocaleDateString("zh-CN")}`
+                        : "暂无走访记录"}
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={(e) => handleEditClick(e, h)}
+                        title="编辑"
+                        className="people-btn-edit"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          border: "none",
+                          background: "rgba(47,128,237,0.08)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          transition: "background 0.2s",
+                        }}
+                      >
+                        <Pencil size={13} color="#2f80ed" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteClick(e, h.id)}
+                        title="删除"
+                        className="people-btn-delete"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          border: "none",
+                          background: "rgba(235,87,87,0.08)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          transition: "background 0.2s",
+                        }}
+                      >
+                        <Trash2 size={13} color="#eb5757" />
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={(e) => handleEditClick(e, h)}
-                      title="编辑"
-                      className="people-btn-edit"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        border: "none",
-                        background: "rgba(47,128,237,0.08)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: 0,
-                        transition: "background 0.2s",
-                      }}
-                    >
-                      <Pencil size={13} color="#2f80ed" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteClick(e, h.id)}
-                      title="删除"
-                      className="people-btn-delete"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        border: "none",
-                        background: "rgba(235,87,87,0.08)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: 0,
-                        transition: "background 0.2s",
-                      }}
-                    >
-                      <Trash2 size={13} color="#eb5757" />
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
-            </Link>
+            </Wrapper>
           );
         })}
       </div>
@@ -492,6 +712,44 @@ export default function PeoplePage() {
               }}
             >
               确认删除
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 批量删除确认弹窗 */}
+      <Modal
+        isOpen={batchConfirmOpen}
+        onClose={() => setBatchConfirmOpen(false)}
+        title="批量删除确认"
+        subtitle="此操作不可撤销"
+      >
+        <div style={{ padding: "0 24px 24px" }}>
+          <p style={{ fontSize: 14, color: "#5a6577", lineHeight: 1.6, marginBottom: 20 }}>
+            确定要删除选中的 <b style={{ color: "#eb5757" }}>{selectedIds.size}</b> 条住户吗？关联的走访记录和家庭成员将一并删除。
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <button
+              onClick={() => setBatchConfirmOpen(false)}
+              disabled={batchDeleting}
+              style={{
+                padding: "8px 20px", borderRadius: 8, border: "1px solid #e4e8ef",
+                background: "#fff", color: "#5a6577", fontSize: 14, cursor: batchDeleting ? "not-allowed" : "pointer",
+              }}
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmBatchDelete}
+              disabled={batchDeleting}
+              style={{
+                padding: "8px 20px", borderRadius: 8, border: "none",
+                background: "#eb5757", color: "#fff", fontSize: 14, fontWeight: 600,
+                cursor: batchDeleting ? "not-allowed" : "pointer",
+                opacity: batchDeleting ? 0.7 : 1,
+              }}
+            >
+              {batchDeleting ? "删除中..." : "确认批量删除"}
             </button>
           </div>
         </div>
