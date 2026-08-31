@@ -2,6 +2,13 @@ import { db } from "@/db";
 import { households } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { parseRow } from "@/lib/db-utils";
+import {
+  validateLat,
+  validateLng,
+  validatePhone,
+  validateGroupName,
+  validateMemberCount,
+} from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +44,29 @@ export async function PUT(
       return Response.json({ message: "无效的 ID" }, { status: 400 });
     }
     const body = await request.json();
+
+    // 输入校验（仅校验本次提交的字段）
+    if (body.headName !== undefined && !String(body.headName).trim()) {
+      return Response.json({ message: "户主姓名不能为空" }, { status: 400 });
+    }
+    if (body.phone !== undefined && !validatePhone(String(body.phone).trim())) {
+      return Response.json({ message: "手机号格式不正确" }, { status: 400 });
+    }
+    if (body.groupName !== undefined && !validateGroupName(body.groupName)) {
+      return Response.json({ message: "组别不合法" }, { status: 400 });
+    }
+    if (body.address !== undefined && !String(body.address).trim()) {
+      return Response.json({ message: "住址不能为空" }, { status: 400 });
+    }
+    if (body.memberCount != null && !validateMemberCount(Number(body.memberCount))) {
+      return Response.json({ message: "家庭成员数不合法（1-50）" }, { status: 400 });
+    }
+    if (body.latitude !== undefined && !validateLat(body.latitude)) {
+      return Response.json({ message: "纬度格式不正确" }, { status: 400 });
+    }
+    if (body.longitude !== undefined && !validateLng(body.longitude)) {
+      return Response.json({ message: "经度格式不正确" }, { status: 400 });
+    }
 
     // 构建更新字段：用 !== undefined / != null 判断，避免 falsy 值（0、""）被短路
     const updateFields: Record<string, unknown> = {};

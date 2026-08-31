@@ -11,12 +11,14 @@ import {
   MapPin,
   Settings,
   ShieldCheck,
+  Table,
   Users,
 } from "lucide-react";
 
 const navItems = [
   { id: "map", href: "/map", label: "地图工作台", icon: Home },
   { id: "people", href: "/people", label: "人员管理", icon: Users },
+  { id: "sheet", href: "/sheet", label: "表格编辑", icon: Table },
   { id: "visits", href: "/visits", label: "入户记录", icon: ClipboardList },
   { id: "statistics", href: "/statistics", label: "数据统计", icon: BarChart3 },
   { id: "transfer", href: "/transfer", label: "导入导出", icon: FileUp },

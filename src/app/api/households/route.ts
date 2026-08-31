@@ -20,9 +20,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const required = ["headName", "phone", "groupName", "address", "latitude", "longitude"];
-    if (required.some((key) => !body[key])) {
-      return Response.json({ message: "请完整填写住户信息与地图定位" }, { status: 400 });
+    const required = ["headName", "phone", "groupName", "address"];
+    if (required.some((key) => !body[key] || !String(body[key]).trim())) {
+      return Response.json({ message: "请完整填写住户信息" }, { status: 400 });
     }
 
     // 输入校验
@@ -32,8 +32,14 @@ export async function POST(request: Request) {
     if (!validateGroupName(body.groupName)) {
       return Response.json({ message: "组别不合法" }, { status: 400 });
     }
-    if (!validateLat(body.latitude) || !validateLng(body.longitude)) {
-      return Response.json({ message: "坐标格式不正确" }, { status: 400 });
+    // 坐标可选：未标记位置时默认 0,0（可在表格/地图中后续标记）
+    const lat = body.latitude != null && body.latitude !== "" ? body.latitude : "0";
+    const lng = body.longitude != null && body.longitude !== "" ? body.longitude : "0";
+    if (lat !== "0" && !validateLat(lat)) {
+      return Response.json({ message: "纬度格式不正确" }, { status: 400 });
+    }
+    if (lng !== "0" && !validateLng(lng)) {
+      return Response.json({ message: "经度格式不正确" }, { status: 400 });
     }
     const mc = Number(body.memberCount) || 1;
     if (!validateMemberCount(mc)) {
@@ -72,8 +78,8 @@ export async function POST(request: Request) {
         markedAddress: body.markedAddress != null ? String(body.markedAddress).trim() : "",
         memberCount: mc,
         tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []) as any,
-        latitude: String(body.latitude),
-        longitude: String(body.longitude),
+        latitude: String(lat),
+        longitude: String(lng),
         lastVisitAt: null,
       } as any)
       .returning();
